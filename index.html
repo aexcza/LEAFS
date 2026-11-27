@@ -896,6 +896,7 @@
                 class="px-3.5 py-2 rounded-xl border border-slate-200 bg-white text-xs text-navy-900 focus:border-blue-500 outline-none" />
             </div>
           </div>
+          <p class="text-[11px] font-semibold text-blue-700">Tip: Click any client card below to switch the active project or click Edit to update contract budget &amp; details.</p>
           <div id="clients-cards-grid" class="grid grid-cols-1 md:grid-cols-2 gap-4"></div>
         </div>
       </div>
@@ -1472,8 +1473,10 @@
     const STORAGE_KEY = 'leafs_liwo_finance_state_v1';
     const USERS_KEY = 'leafs_liwo_users_v1';
     const SESSION_KEY = 'leafs_liwo_session_v1';
-    const SCRIPT_URL_KEY = 'leafs_liwo_apps_script_url_v1';
-    const DEFAULT_GAS_WEB_APP_URL = '';
+    const SCRIPT_URL_KEY = 'leafs_gas_url';
+    const LEGACY_SCRIPT_URL_KEY = 'leafs_liwo_apps_script_url_v1';
+    const DEFAULT_GAS_URL = 'https://script.google.com/macros/s/AKfycbwK8vfRoWytuM7Fa-U3fA_UuydqFWIEzkuVmc05DKjQaCXR-A-c9keNrPHkax4prc2O/exec';
+    const DEFAULT_GAS_WEB_APP_URL = DEFAULT_GAS_URL;
 
     const DEFAULT_USERS = [
       {
@@ -2040,19 +2043,29 @@ function syncTab(ss, name, headers, rows) {
     }
 
     function getConfiguredScriptUrl() {
-      return (localStorage.getItem(SCRIPT_URL_KEY) || DEFAULT_GAS_WEB_APP_URL || '').trim();
+      const saved = (localStorage.getItem(SCRIPT_URL_KEY) || localStorage.getItem(LEGACY_SCRIPT_URL_KEY) || '').trim();
+      if (saved && saved.startsWith('https://script.google.com/')) {
+        localStorage.setItem(SCRIPT_URL_KEY, saved);
+        return saved;
+      }
+      localStorage.setItem(SCRIPT_URL_KEY, DEFAULT_GAS_URL);
+      return DEFAULT_GAS_URL;
     }
 
     function updateSheetsConnectionIndicators() {
       const url = getConfiguredScriptUrl();
       const isConnected = Boolean(url);
+      const urlInput = document.getElementById('apps-script-url-input');
+      if (urlInput && !urlInput.value) {
+        urlInput.value = url;
+      }
 
       const loginDot = document.getElementById('login-sheets-dot');
       const loginText = document.getElementById('login-sheets-status-text');
       if (loginDot && loginText) {
         loginDot.className = isConnected ? 'w-2 h-2 rounded-full bg-emerald-500 shrink-0' : 'w-2 h-2 rounded-full bg-amber-400 shrink-0';
         loginText.textContent = isConnected
-          ? 'Google Sheets Connected (Live Users & Data Sync)'
+          ? 'Google Sheets Connected (Permanent URL • Live Sync)'
           : 'Local Mode (Connect Sheets for multi-device sync)';
       }
 
@@ -3037,7 +3050,8 @@ function syncTab(ss, name, headers, rows) {
         const displayAddress = (proj && proj.location) ? proj.location : (c.address || '');
         const m = proj ? getProjectMetrics(proj.id) : null;
         return `
-          <div class="leafs-subcard p-4 space-y-3 ${isSelected ? 'ring-2 ring-blue-500/70 bg-blue-50/25' : ''}">
+          <div onclick="selectClientCard('${c.id}', '${proj ? proj.id : ''}')"
+            class="leafs-subcard p-4 space-y-3 cursor-pointer transition hover:border-blue-400 ${isSelected ? 'ring-2 ring-blue-500/70 bg-blue-50/25' : ''}">
             <div class="flex items-start justify-between gap-2">
               <div class="min-w-0">
                 <div class="flex flex-wrap items-center gap-1.5">
@@ -3047,7 +3061,7 @@ function syncTab(ss, name, headers, rows) {
                 </div>
                 <p class="text-xs text-slate-500 mt-0.5">${escapeHtml(displayAddress)}</p>
               </div>
-              <div class="flex items-center gap-1 shrink-0">
+              <div onclick="event.stopPropagation()" class="flex items-center gap-1 shrink-0">
                 ${proj ? `<span class="px-2 py-0.5 rounded-md bg-blue-50 text-blue-700 font-mono text-[10px] font-bold">${escapeHtml(proj.code)}</span>` : ''}
                 <button type="button" onclick="openEditRecord('client', '${c.id}')" class="px-2 py-1 rounded-lg bg-white border border-slate-200 hover:bg-blue-50 text-navy-900 text-[11px] font-bold">Edit</button>
                 <button type="button" onclick="confirmDeleteRecord('client', '${c.id}')" class="px-2 py-1 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-600 text-[11px] font-bold">Delete</button>
@@ -3079,6 +3093,17 @@ function syncTab(ss, name, headers, rows) {
           </div>
         `;
       }).join('');
+    }
+
+    function selectClientCard(clientId, projectId) {
+      const client = appState.clients.find(c => c.id === clientId);
+      const targetProjId = projectId || (client && client.projectId) || appState.activeProjectId;
+      if (targetProjId && appState.projects.some(p => p.id === targetProjId)) {
+        appState.activeProjectId = targetProjId;
+        saveState(false);
+        refreshAllViews();
+        showToast(`Selected client: ${client ? client.name : 'Active Project'}`);
+      }
     }
 
     // -----------------------------------------------------------------------
@@ -3906,17 +3931,15 @@ function syncTab(ss, name, headers, rows) {
     }
 
     async function saveAppsScriptUrl() {
-      const url = document.getElementById('apps-script-url-input').value.trim();
+      const inputVal = document.getElementById('apps-script-url-input').value.trim();
+      const url = inputVal || DEFAULT_GAS_URL;
       localStorage.setItem(SCRIPT_URL_KEY, url);
+      document.getElementById('apps-script-url-input').value = url;
       updateSheetsConnectionIndicators();
-      if (url) {
-        showToast('Google Sheets URL connected! Syncing Users & Records...');
-        await syncToGoogleSheets(true);
-        await pullFullStateFromSheets(false);
-        renderQuickLoginCards();
-      } else {
-        showToast('Google Sheets URL cleared.');
-      }
+      showToast('Permanent Google Sheets URL saved! Syncing Users & Records...');
+      await syncToGoogleSheets(true);
+      await pullFullStateFromSheets(false);
+      renderQuickLoginCards();
       closeSheetsModal();
     }
 
