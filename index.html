@@ -170,53 +170,144 @@
           </button>
         </form>
 
-        <!-- CREATE ACCOUNT FORM -->
-        <form id="register-form" onsubmit="handleRegister(event)" class="hidden space-y-3.5">
-          <div>
-            <label for="reg-name" class="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1">Full Name &amp; Title</label>
-            <input type="text" id="reg-name" required placeholder="e.g. Engr. Juan Dela Cruz"
-              class="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 bg-white text-sm text-navy-900 focus:border-blue-500 outline-none" />
-          </div>
+   <!-- CREATE ACCOUNT: ADMIN-MANAGED -->
+<div id="register-form" class="hidden space-y-3.5">
 
-          <div>
-            <label for="reg-role" class="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1">Role / Position</label>
-            <input type="text" id="reg-role" required placeholder="e.g. Project Engineer / Accountant"
-              class="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 bg-white text-sm text-navy-900 focus:border-blue-500 outline-none" />
-          </div>
+  <div class="rounded-xl border border-blue-100 bg-blue-50/70 p-4">
+    <div class="flex items-center gap-2 mb-2">
+      <div class="w-8 h-8 rounded-lg bg-white border border-blue-100 flex items-center justify-center text-blue-700">
+        <svg class="w-4 h-4" viewBox="0 0 24 24"
+          fill="none" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round"
+            d="M16 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2M10 7a4 4 0 1 0 0-8 4 4 0 0 0 0 8Zm10 5v6m-3-3h6"/>
+        </svg>
+      </div>
+      <h3 class="font-bold text-sm text-navy-900">
+        Create an Authorized Account
+      </h3>
+    </div>
 
-          <div>
-            <label for="reg-email" class="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1">Email Address</label>
-            <input type="email" id="reg-email" required placeholder="engineer@gmail.com"
-              class="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 bg-white text-sm text-navy-900 focus:border-blue-500 outline-none" />
-          </div>
+    <p class="text-xs leading-relaxed text-slate-600">
+      LEAFS accounts are managed by an authorized administrator
+      to protect company financial records. Public registration
+      is disabled.
+    </p>
+  </div>
 
-          <div>
-            <label for="reg-password" class="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1">Password</label>
-            <div class="relative">
-              <input type="password" id="reg-password" required minlength="6" placeholder="Minimum 6 characters"
-                class="w-full px-3.5 py-2.5 pr-16 rounded-xl border border-slate-200 bg-white text-sm text-navy-900 focus:border-blue-500 outline-none" />
-              <button type="button" onclick="togglePasswordVisibility('reg-password', this)"
-                class="absolute right-2.5 top-1/2 -translate-y-1/2 px-2 py-1 text-[11px] font-bold text-slate-500 hover:text-navy-900">
-                Show
-              </button>
-            </div>
-          </div>
+  <div class="rounded-xl border border-slate-200 bg-white p-3.5">
+    <p class="text-xs font-bold text-navy-900 mb-2">
+      How to add a team member
+    </p>
 
-          <button type="submit" class="w-full py-3 px-4 rounded-xl bg-navy-900 hover:bg-navy-800 text-white font-bold text-sm shadow-sm transition">
-            Create Account &amp; Enter Workspace &rarr;
-          </button>
-        </form>
+    <ol class="list-decimal pl-4 space-y-1.5 text-xs text-slate-600">
+      <li>Sign in using an administrator account.</li>
+      <li>Open Account Management.</li>
+      <li>Add the member's name, email, role, and temporary password.</li>
+    </ol>
+  </div>
+
+  <button type="button"
+    onclick="switchAuthMode('login')"
+    class="w-full py-2.5 px-4 rounded-xl bg-navy-900 hover:bg-navy-800 text-white font-bold text-xs shadow-sm transition">
+    Return to Sign In
+  </button>
+
+</div>
 
         <!-- QUICK FILL ACCOUNT (AUTHORIZED TEAM) -->
-        <div id="quick-fill-section" class="hidden">
-          <div class="flex items-center justify-between gap-2">
-            <span class="text-[10px] font-extrabold uppercase tracking-wider text-slate-400">QUICK FILL ACCOUNT (AUTHORIZED TEAM)</span>
-            <span class="text-[10px] font-semibold text-blue-600">Click to fill email</span>
-          </div>
-          <div id="quick-fill-grid" style="display: grid !important; visibility: visible !important; opacity: 1 !important;"></div>
-          <div id="quick-fill-accounts" class="hidden" aria-hidden="true"></div>
-          <div id="quick-login-grid" class="hidden" aria-hidden="true"></div>
-        </div>
+<div id="quick-fill-section">
+
+  <div class="flex items-center justify-between gap-2 mb-2">
+    <span class="text-[10px] font-extrabold uppercase tracking-wider text-slate-400">
+      QUICK FILL ACCOUNT
+    </span>
+
+    <span class="text-[10px] font-semibold text-blue-600">
+      Click to fill email
+    </span>
+  </div>
+
+  <div id="quick-fill-grid"
+    class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+
+    <!-- CHRISTIAN -->
+    <button type="button"
+      class="quick-fill-card text-left"
+      onclick="quickFillLogin('valezachristian0821@gmail.com')">
+
+      <div class="min-w-0">
+        <span class="block text-xs font-bold text-navy-900">
+          Engr. Christian A. Valeza
+        </span>
+        <span class="block text-[10px] text-slate-500 truncate">
+          valezachristian0821@gmail.com
+        </span>
+      </div>
+
+      <span class="ml-auto text-[10px] font-bold text-blue-700">
+        Fill
+      </span>
+    </button>
+
+    <!-- TRISTAN -->
+    <button type="button"
+      class="quick-fill-card text-left"
+      onclick="quickFillLogin('tristanvelasco4@gmail.com')">
+
+      <div class="min-w-0">
+        <span class="block text-xs font-bold text-navy-900">
+          Engr. Godwin Tristan P. Velasco
+        </span>
+        <span class="block text-[10px] text-slate-500 truncate">
+          tristanvelasco4@gmail.com
+        </span>
+      </div>
+
+      <span class="ml-auto text-[10px] font-bold text-blue-700">
+        Fill
+      </span>
+    </button>
+
+    <!-- DANA -->
+    <button type="button"
+      class="quick-fill-card text-left"
+      onclick="quickFillLogin('danaalthear@gmail.com')">
+
+      <div class="min-w-0">
+        <span class="block text-xs font-bold text-navy-900">
+          Dana Althea R. Rabo
+        </span>
+        <span class="block text-[10px] text-slate-500 truncate">
+          danaalthear@gmail.com
+        </span>
+      </div>
+
+      <span class="ml-auto text-[10px] font-bold text-blue-700">
+        Fill
+      </span>
+    </button>
+
+    <!-- LIWO ADMINISTRATOR -->
+    <button type="button"
+      class="quick-fill-card text-left"
+      onclick="quickFillLogin('liwoec@gmail.com')">
+
+      <div class="min-w-0">
+        <span class="block text-xs font-bold text-navy-900">
+          LIWO Administrator
+        </span>
+        <span class="block text-[10px] text-slate-500 truncate">
+          liwoec@gmail.com
+        </span>
+      </div>
+
+      <span class="ml-auto text-[10px] font-bold text-blue-700">
+        Fill
+      </span>
+    </button>
+
+  </div>
+</div>
 
         <!-- CONNECT GOOGLE SHEETS BAR ON LOGIN PORTAL -->
         <div class="pt-3 border-t border-slate-100 flex items-center justify-between gap-2">
@@ -1513,7 +1604,6 @@
   <!-- ======================================================================= -->
   <script>
     const SESSION_KEY = 'leafs_liwo_session_v2';
-    const SESSION_KEY = 'leafs_liwo_session_v2';
     const SCRIPT_URL_KEY = 'leafs_gas_url_v2';
     const LEGACY_SCRIPT_URL_KEY = 'leafs_liwo_apps_script_url_v1';
     const DEFAULT_GAS_URL = ''; // Paste the newly deployed LEAFS Apps Script Web App URL.
@@ -1809,29 +1899,66 @@
       box.textContent = msg;
     }
 
-    function renderQuickFillAccounts() { return; }
-    function switchAuthMode(mode) {
-      const isLogin = true;
-      const loginForm = document.getElementById('login-form');
-      const regForm = document.getElementById('register-form');
-      const tabLogin = document.getElementById('auth-tab-login');
-      const tabReg = document.getElementById('auth-tab-register');
+    function renderQuickFillAccounts() {
+  const section = document.getElementById('quick-fill-section');
+  const loginForm = document.getElementById('login-form');
 
-      if (loginForm) loginForm.classList.toggle('hidden', !isLogin);
-      if (regForm) regForm.classList.toggle('hidden', isLogin);
-      if (tabLogin) {
-        tabLogin.className = isLogin
-          ? 'py-2 rounded-lg bg-white text-navy-900 font-bold text-xs shadow-xs transition'
-          : 'py-2 rounded-lg text-slate-500 hover:text-navy-900 font-bold text-xs transition';
-      }
-      if (tabReg) {
-        tabReg.className = !isLogin
-          ? 'py-2 rounded-lg bg-white text-navy-900 font-bold text-xs shadow-xs transition'
-          : 'py-2 rounded-lg text-slate-500 hover:text-navy-900 font-bold text-xs transition';
-      }
-      showAuthFeedback('');
-      renderQuickFillAccounts();
-    }
+  if (section && loginForm) {
+    section.classList.toggle(
+      'hidden',
+      loginForm.classList.contains('hidden')
+    );
+  }
+}
+
+function quickFillLogin(email) {
+  switchAuthMode('login');
+
+  const emailInput = document.getElementById('login-email');
+  const passwordInput = document.getElementById('login-password');
+
+  if (emailInput) {
+    emailInput.value = String(email || '').trim().toLowerCase();
+  }
+
+  // Never autofill a password.
+  if (passwordInput) {
+    passwordInput.value = '';
+    passwordInput.focus();
+  }
+}
+
+function switchAuthMode(mode) {
+  const isLogin = mode !== 'register';
+
+  const loginForm = document.getElementById('login-form');
+  const regForm = document.getElementById('register-form');
+  const tabLogin = document.getElementById('auth-tab-login');
+  const tabReg = document.getElementById('auth-tab-register');
+
+  if (loginForm) {
+    loginForm.classList.toggle('hidden', !isLogin);
+  }
+
+  if (regForm) {
+    regForm.classList.toggle('hidden', isLogin);
+  }
+
+  if (tabLogin) {
+    tabLogin.className = isLogin
+      ? 'py-2 rounded-lg bg-white text-navy-900 font-bold text-xs shadow-xs transition'
+      : 'py-2 rounded-lg text-slate-500 hover:text-navy-900 font-bold text-xs transition';
+  }
+
+  if (tabReg) {
+    tabReg.className = !isLogin
+      ? 'py-2 rounded-lg bg-white text-navy-900 font-bold text-xs shadow-xs transition'
+      : 'py-2 rounded-lg text-slate-500 hover:text-navy-900 font-bold text-xs transition';
+  }
+
+  showAuthFeedback('');
+  renderQuickFillAccounts();
+}
 
     function togglePasswordVisibility(inputId, btn) {
       const input = document.getElementById(inputId);
