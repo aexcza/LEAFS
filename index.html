@@ -1520,7 +1520,7 @@
     const LEGACY_SCRIPT_URL_KEY = 'leafs_liwo_apps_script_url_v1';
     const DEFAULT_GAS_URL = 'https://script.google.com/macros/s/AKfycbwK8vfRoWytuM7Fa-U3fA_UuydqFWIEzkuVmc05DKjQaCXR-A-c9keNrPHkax4prc2O/exec';
     const DEFAULT_GAS_WEB_APP_URL = DEFAULT_GAS_URL;
-    const LEAFS_SHEET_URL = 'https://docs.google.com/spreadsheets/d/1PM7UTf-yc9Ig8YZYuoSfGK-9FACn88HM4OfviHWiHgM/edit';
+    const LEAFS_SHEET_URL = 'https://docs.google.com/spreadsheets/d/1OyWubhX8Y8pab9i7C19yxbrk8fTFIM4_sDFFJK6QwQQ/edit';
 
     const AUTHORIZED_QUICK_FILL_TEAM = [
       {
@@ -1620,25 +1620,17 @@
       };
     }
 
+    // Cloud-only mode: application data is never persisted in browser localStorage.
+    // This in-memory map is used only for transient UI/session values during this page load.
     const memoryStorage = new Map();
     function safeGetStorage(key) {
-      try {
-        const val = window.localStorage.getItem(key);
-        if (val !== null) return val;
-      } catch (_) {}
       return memoryStorage.has(key) ? memoryStorage.get(key) : null;
     }
     function safeSetStorage(key, value) {
       memoryStorage.set(key, String(value));
-      try {
-        window.localStorage.setItem(key, String(value));
-      } catch (_) {}
     }
     function safeRemoveStorage(key) {
       memoryStorage.delete(key);
-      try {
-        window.localStorage.removeItem(key);
-      } catch (_) {}
     }
 
     // Permanently bound to the hardcoded DEFAULT_GAS_URL so it works seamlessly on any device/session
@@ -4065,7 +4057,7 @@
       const loginText = document.getElementById('login-sheets-status-text');
       if (dot) dot.className = connected ? 'w-2 h-2 rounded-full bg-emerald-500' : 'w-2 h-2 rounded-full bg-amber-400';
       if (loginDot) loginDot.className = connected ? 'w-2 h-2 rounded-full bg-emerald-500 shrink-0' : 'w-2 h-2 rounded-full bg-amber-400 shrink-0';
-      if (loginText) loginText.textContent = connected ? 'Google Sheets Connected (Permanent)' : 'Local Mode (Connect Sheets URL)';
+      if (loginText) loginText.textContent = connected ? 'Google Sheets Connected (Permanent)' : 'Cloud database connection required';
     }
 
     function openSheetsModal() {
@@ -4111,11 +4103,34 @@
       syncPending++;
       syncQueue = syncQueue.then(async () => {
         try {
-          await fetch(url, { method: 'POST', mode: 'no-cors', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(payload) });
+          // Confirm the opaque Apps Script POST by reading the authoritative cloud database.
+          const serverState = await postLeafsAction(payload);
+          const remote = serverState && (serverState.clientData || serverState.data);
+          if (!remote) throw new Error('The shared database did not return its saved records.');
+          Object.keys(changed || {}).forEach(key => {
+            const rows = Array.isArray(remote[key]) ? remote[key] : [];
+            (changed[key] || []).forEach(row => {
+              const id = String(row.id || row.ID || '').trim();
+              if (id && !rows.some(saved => String(saved.id || saved.ID || '').trim() === id)) {
+                throw new Error('The server did not confirm saving ' + key + ' record ' + id + '.');
+              }
+            });
+          });
+          Object.keys(deleted || {}).forEach(key => {
+            const rows = Array.isArray(remote[key]) ? remote[key] : [];
+            (deleted[key] || []).forEach(id => {
+              if (rows.some(saved => String(saved.id || saved.ID || '').trim() === String(id))) {
+                throw new Error('The server did not confirm deleting ' + key + ' record ' + id + '.');
+              }
+            });
+          });
+          const refreshed = await pullFullStateFromSheets(false);
+          if (!refreshed) throw new Error('The write was sent, but the shared database could not be refreshed.');
+          if (showFeedbackToast) showToast('Changes saved to the shared LEAFS database.', 'success');
           return true;
         } catch (err) {
           console.error('LEAFS record sync failed:', err);
-          if (showFeedbackToast) showToast('Could not save changes to shared Google Sheets.', 'error');
+          if (showFeedbackToast) showToast('Could not confirm the save in shared Google Sheets: ' + (err.message || 'Unknown error'), 'error');
           return false;
         } finally { syncPending = Math.max(0, syncPending - 1); }
       });
