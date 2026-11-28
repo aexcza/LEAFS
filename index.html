@@ -3500,7 +3500,6 @@ function switchAuthMode(mode) {
           logAuditEvent('UPDATE', `Edited client payment ${item.reference} (${formatPeso(item.amount)}).`);
         }
       } else if (entityType === 'client') {
-     } else if (entityType === 'client') {
   const item = appState.clients.find(c => c.id === id);
 
   if (item) {
