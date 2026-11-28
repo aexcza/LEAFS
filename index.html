@@ -1739,6 +1739,10 @@
     }
 
     appState = loadAppState();
+    let lastSavedSnapshot = JSON.parse(JSON.stringify(appState));
+    let syncQueue = Promise.resolve();
+    let syncPending = 0;
+    let isPullingRemote = false;
 
     // -----------------------------------------------------------------------
     // FORMATTING, SANITIZATION & HELPERS
@@ -2826,6 +2830,14 @@
 
       logAuditEvent('CREATE', `Recorded ${type} of ${formatPeso(amount)} (${category} - ${description}) on ${proj.code}.`);
       saveState();
+      if (currentReceiptData) {
+        const receipt = appState.receipts[0];
+        const receiptPayload = { ...currentReceiptData, receiptId: receipt?.id, transactionId: txId, projectCode: proj.code, category, date, payee, description, amount };
+        uploadTransactionReceipt(receiptPayload).catch(err => {
+          console.error('Transaction receipt upload failed:', err);
+          showToast('Transaction saved, but receipt upload failed: ' + (err.message || 'Please retry from Receipts.'), 'error');
+        });
+      }
       resetTransactionForm();
       refreshAllViews();
       switchTab('dashboard');
@@ -3326,6 +3338,26 @@
       };
       reader.onerror = () => showToast('Could not read the selected receipt file.', 'error');
       reader.readAsDataURL(file);
+    }
+
+    async function uploadTransactionReceipt(info) {
+      if (!info || !info.dataUrl || !info.receiptId) return false;
+      if (info.dataUrl.length > 11 * 1024 * 1024) throw new Error('Receipt is too large for upload. Please use a file under 8 MB.');
+      const receipt = appState.receipts.find(r => r.id === info.receiptId);
+      const upload = await postLeafsAction({
+        action: 'uploadReceipt', id: info.receiptId, projectCode: info.projectCode,
+        fileName: info.fileName, mimeType: info.mimeType, base64Data: info.dataUrl,
+        category: info.category, linkedRef: info.transactionId, transactionId: info.transactionId,
+        date: info.date, uploadedBy: currentUser?.name || 'LEAFS User', actorEmail: currentUser?.email || ''
+      });
+      if (!upload || !upload.ok || !upload.driveUrl) throw new Error(upload?.error || 'Google Drive did not confirm the receipt.');
+      if (receipt) { receipt.driveUrl = upload.driveUrl; receipt.dataUrl = ''; receipt.uploadStatus = 'uploaded'; }
+      const tx = appState.transactions.find(t => t.id === info.transactionId);
+      if (tx) { tx.receiptDriveUrl = upload.driveUrl; tx.receiptFileName = info.fileName; }
+      safeSetStorage(STORAGE_KEY, JSON.stringify(appState));
+      lastSavedSnapshot = JSON.parse(JSON.stringify(appState));
+      refreshAllViews();
+      return true;
     }
 
     async function postLeafsAction(payload) {
@@ -4004,8 +4036,24 @@
     // -----------------------------------------------------------------------
     function saveState(pushToRemote = true) {
       safeSetStorage(STORAGE_KEY, JSON.stringify(appState));
-      if (pushToRemote) {
-        pushFullStateToSheets(false);
+      if (pushToRemote && !isPullingRemote) {
+        const previous = lastSavedSnapshot || {};
+        const current = JSON.parse(JSON.stringify(appState));
+        const keys = ['projects','clients','transactions','payments','bills','receipts','notifications'];
+        const changed = {};
+        const deleted = {};
+        keys.forEach(key => {
+          const idKey = 'id';
+          const before = new Map((Array.isArray(previous[key]) ? previous[key] : []).map(row => [String(row[idKey] || ''), JSON.stringify(row)]));
+          const after = new Map((Array.isArray(current[key]) ? current[key] : []).map(row => [String(row[idKey] || ''), row]));
+          changed[key] = [];
+          deleted[key] = [];
+          after.forEach((row, id) => { if (!before.has(id) || before.get(id) !== JSON.stringify(row)) changed[key].push(row); });
+          before.forEach((_, id) => { if (!after.has(id)) deleted[key].push(id); });
+        });
+        lastSavedSnapshot = current;
+        const hasChanges = Object.keys(changed).some(k => changed[k].length) || Object.keys(deleted).some(k => deleted[k].length);
+        if (hasChanges) pushChangedRecordsToSheets(changed, deleted);
       }
     }
 
@@ -4056,27 +4104,30 @@
       ta.remove();
     }
 
-    async function pushFullStateToSheets(showFeedbackToast = false) {
+    async function pushChangedRecordsToSheets(changed, deleted = {}, showFeedbackToast = false) {
       const url = getAppsScriptUrl();
       if (!url) return false;
-      try {
-        const payload = {
-          action: 'syncAll', users: loadUsers(), projects: appState.projects, clients: appState.clients,
-          transactions: appState.transactions, payments: appState.payments, bills: appState.bills,
-          receipts: appState.receipts.map(r => ({
-            id: r.id, projectId: r.projectId, projectCode: r.projectCode, projectName: r.projectName,
-            title: r.title, category: r.category, amount: r.amount, date: r.date, fileName: r.fileName,
-            mimeType: r.mimeType, driveFolder: r.driveFolder || '/liwoaccountingreceipts',
-            driveUrl: r.driveUrl || '', driveAccount: r.driveAccount || 'liwoec@gmail.com'
-          })), auditLogs: appState.notifications
-        };
-        await fetch(url, { method: 'POST', mode: 'no-cors', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(payload) });
-        if (showFeedbackToast) showToast('LEAFS records sent to the shared database.');
-        return true;
-      } catch (err) {
-        if (showFeedbackToast) showToast('Could not reach the shared LEAFS database.', 'error');
-        return false;
-      }
+      const payload = { action: 'syncChanges', data: changed || {}, deleted: deleted || {} };
+      syncPending++;
+      syncQueue = syncQueue.then(async () => {
+        try {
+          await fetch(url, { method: 'POST', mode: 'no-cors', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(payload) });
+          return true;
+        } catch (err) {
+          console.error('LEAFS record sync failed:', err);
+          if (showFeedbackToast) showToast('Could not save changes to shared Google Sheets.', 'error');
+          return false;
+        } finally { syncPending = Math.max(0, syncPending - 1); }
+      });
+      return syncQueue;
+    }
+
+    async function pushFullStateToSheets(showFeedbackToast = false) {
+      // Never replace the shared database with a browser's complete local snapshot.
+      // A manual push is now a server refresh; actual edits are sent as record-level deltas.
+      const ok = await pullFullStateFromSheets(false);
+      if (showFeedbackToast) showToast(ok ? 'Latest shared LEAFS records loaded.' : 'Could not reach the shared database.', ok ? 'success' : 'error');
+      return ok;
     }
 
     async function upsertUserToGoogleSheets(userObj) {
@@ -4107,6 +4158,7 @@
         const response = await res.json();
         if (!response || response.ok === false) throw new Error(response?.error || 'Invalid server response');
         const data = response.clientData || response.data || response;
+        isPullingRemote = true;
         const camelRows = (rows, tab) => (Array.isArray(rows) ? rows : []).map(row => {
           const o = {};
           Object.keys(row || {}).forEach(k => o[k.charAt(0).toLowerCase() + k.slice(1)] = row[k]);
@@ -4138,10 +4190,13 @@
         }
         if (appState.projects.length && !appState.projects.some(p => p.id === appState.activeProjectId)) appState.activeProjectId = appState.projects[0].id;
         safeSetStorage(STORAGE_KEY, JSON.stringify(appState));
+        lastSavedSnapshot = JSON.parse(JSON.stringify(appState));
+        isPullingRemote = false;
         if (currentUser) refreshAllViews();
         if (showFeedbackToast) showToast('Latest shared LEAFS records loaded.');
         return true;
       } catch (err) {
+        isPullingRemote = false;
         console.error('LEAFS shared database pull failed:', err);
         if (showFeedbackToast) showToast('Could not load shared records. Check deployment and connection.', 'error');
         return false;
@@ -4153,237 +4208,7 @@
     }
 
     function getAppsScriptTemplate() {
-      return `const SHEET_NAMES = [
-  'Users',
-  'Projects',
-  'Clients',
-  'Transactions',
-  'Payments',
-  'Bills',
-  'Receipts',
-  'AuditLogs'
-];
-
-const RECEIPT_DRIVE_FOLDER = 'liwoaccountingreceipts';
-const OFFICIAL_SENDER = 'liwoec@gmail.com';
-const REPORT_RECIPIENTS = [
-  'danaalthear@gmail.com',
-  'valezachristian0821@gmail.com',
-  'tristanvelasco4@gmail.com'
-];
-
-function doGet(e) {
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
-  ensureSheetsInitialized(ss);
-  const action = (e && e.parameter && e.parameter.action) || 'getAll';
-  if (action === 'getAll') {
-    return jsonResponse({
-      ok: true,
-      users: readRowsAsObjects(ss.getSheetByName('Users')),
-      projects: readRowsAsObjects(ss.getSheetByName('Projects')),
-      clients: readRowsAsObjects(ss.getSheetByName('Clients')),
-      transactions: readRowsAsObjects(ss.getSheetByName('Transactions')),
-      payments: readRowsAsObjects(ss.getSheetByName('Payments')),
-      bills: readRowsAsObjects(ss.getSheetByName('Bills')),
-      receipts: readRowsAsObjects(ss.getSheetByName('Receipts')),
-      auditLogs: readRowsAsObjects(ss.getSheetByName('AuditLogs'))
-    });
-  }
-  return jsonResponse({ ok: true, status: 'LEAFS Apps Script Ready' });
-}
-
-function doPost(e) {
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
-  ensureSheetsInitialized(ss);
-  const body = JSON.parse(e.postData.contents || '{}');
-
-  if (body.action === 'upsertUser' && body.user) {
-    upsertUserRow(ss.getSheetByName('Users'), body.user);
-    return jsonResponse({ ok: true, action: 'upsertUser' });
-  }
-
-  if (body.action === 'syncAll') {
-    if (Array.isArray(body.users)) {
-      body.users.forEach(u => upsertUserRow(ss.getSheetByName('Users'), u));
-    }
-    if (Array.isArray(body.projects)) replaceSheetRows(ss.getSheetByName('Projects'), body.projects);
-    if (Array.isArray(body.clients)) replaceSheetRows(ss.getSheetByName('Clients'), body.clients);
-    if (Array.isArray(body.transactions)) replaceSheetRows(ss.getSheetByName('Transactions'), body.transactions);
-    if (Array.isArray(body.payments)) replaceSheetRows(ss.getSheetByName('Payments'), body.payments);
-    if (Array.isArray(body.bills)) replaceSheetRows(ss.getSheetByName('Bills'), body.bills);
-    if (Array.isArray(body.receipts)) {
-      const processed = body.receipts.map(r => {
-        let driveUrl = r.driveUrl || '';
-        if (r.fileBase64 && !driveUrl) {
-          driveUrl = saveBase64ToDrive(r.fileBase64, r.fileName || 'receipt.jpg', r.mimeType || 'image/jpeg');
-        }
-        return {
-          id: r.id,
-          projectId: r.projectId,
-          projectCode: r.projectCode,
-          projectName: r.projectName,
-          title: r.title,
-          category: r.category,
-          amount: r.amount,
-          date: r.date,
-          fileName: r.fileName,
-          driveFolder: RECEIPT_DRIVE_FOLDER,
-          driveUrl: driveUrl
-        };
-      });
-      replaceSheetRows(ss.getSheetByName('Receipts'), processed);
-    }
-    if (Array.isArray(body.auditLogs)) replaceSheetRows(ss.getSheetByName('AuditLogs'), body.auditLogs);
-    return jsonResponse({ ok: true, action: 'syncAll' });
-  }
-
-  return jsonResponse({ ok: true });
-}
-
-function ensureSheetsInitialized(ss) {
-  SHEET_NAMES.forEach(name => {
-    if (!ss.getSheetByName(name)) {
-      ss.insertSheet(name);
-    }
-  });
-}
-
-function upsertUserRow(sheet, user) {
-  const email = String(user.email || '').trim().toLowerCase();
-  if (!email) return;
-  const headers = ['email', 'name', 'shortName', 'role', 'passwordHash', 'isDefaultPassword', 'updatedAt'];
-  ensureHeaders(sheet, headers);
-  const data = sheet.getDataRange().getValues();
-  const rowObj = {
-    email,
-    name: user.name || email,
-    shortName: user.shortName || '',
-    role: user.role || 'Authorized Team',
-    passwordHash: user.passwordHash || 'liwo2026',
-    isDefaultPassword: user.isDefaultPassword !== false,
-    updatedAt: user.updatedAt || new Date().toISOString()
-  };
-  for (let i = 1; i < data.length; i++) {
-    if (String(data[i][0] || '').trim().toLowerCase() === email) {
-      sheet.getRange(i + 1, 1, 1, headers.length).setValues([headers.map(h => rowObj[h])]);
-      return;
-    }
-  }
-  sheet.appendRow(headers.map(h => rowObj[h]));
-}
-
-function replaceSheetRows(sheet, items) {
-  sheet.clearContents();
-  if (!items || items.length === 0) return;
-  const keys = Array.from(items.reduce((set, obj) => {
-    Object.keys(obj || {}).forEach(k => set.add(k));
-    return set;
-  }, new Set()));
-  sheet.getRange(1, 1, 1, keys.length).setValues([keys]);
-  const rows = items.map(obj => keys.map(k => obj[k] !== undefined ? obj[k] : ''));
-  sheet.getRange(2, 1, rows.length, keys.length).setValues(rows);
-}
-
-function readRowsAsObjects(sheet) {
-  if (!sheet) return [];
-  const data = sheet.getDataRange().getValues();
-  if (data.length < 2) return [];
-  const headers = data[0].map(h => String(h).trim());
-  return data.slice(1).filter(r => r.some(c => c !== '')).map(r => {
-    const obj = {};
-    headers.forEach((h, idx) => { obj[h] = r[idx]; });
-    return obj;
-  });
-}
-
-function ensureHeaders(sheet, headers) {
-  if (sheet.getLastRow() === 0) {
-    sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
-  }
-}
-
-function saveBase64ToDrive(dataUrl, fileName, mimeType) {
-  const parts = String(dataUrl).split(',');
-  const base64 = parts.length > 1 ? parts[1] : parts[0];
-  const bytes = Utilities.base64Decode(base64);
-  const blob = Utilities.newBlob(bytes, mimeType, fileName);
-  const folders = DriveApp.getFoldersByName(RECEIPT_DRIVE_FOLDER);
-  const folder = folders.hasNext() ? folders.next() : DriveApp.createFolder(RECEIPT_DRIVE_FOLDER);
-  const file = folder.createFile(blob);
-  return file.getUrl();
-}
-
-function sendWeeklyAccountingReport() {
-  sendScheduledLeafsReport(
-    'YO, ENGR! 📎WEEKLY ACCOUNTING AND FINANCE REPORT HAS ARRIVED!',
-    'Weekly Accounting & Finance Report (Saturday 5:00 PM Schedule)'
-  );
-}
-
-function sendMonthlyAccountingReport() {
-  sendScheduledLeafsReport(
-    'YO, ENGR! DOING GREAT? 📎 MONTHLY ACCOUNTING AND FINANCE REPORT HAS ARRIVED!',
-    'Monthly Accounting & Finance Report (1st of Month Schedule)'
-  );
-}
-
-function sendScheduledLeafsReport(subject, label) {
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
-  const projects = readRowsAsObjects(ss.getSheetByName('Projects'));
-  const payments = readRowsAsObjects(ss.getSheetByName('Payments'));
-  const transactions = readRowsAsObjects(ss.getSheetByName('Transactions'));
-
-  const totalBudget = projects.reduce((s, p) => s + (Number(p.contractBudget) || 0), 0);
-  const totalCollected = payments.reduce((s, p) => s + (Number(p.amount) || 0), 0);
-  const totalSpent = transactions.reduce((s, t) => s + (Number(t.amount) || 0), 0);
-  const cashPosition = totalCollected - totalSpent;
-
-  const htmlBody = \`
-    <div style="font-family: Arial, sans-serif; color: #0f2942; line-height: 1.5;">
-      <h2>LEAFS — LIWO ENGINEERING ACCOUNTING AND FINANCE SYSTEM</h2>
-      <p><strong>Report Type:</strong> \${label}</p>
-      <ul>
-        <li><strong>Contract Budget:</strong> ₱\${totalBudget.toLocaleString('en-PH', {minimumFractionDigits: 2})}</li>
-        <li><strong>Total Client Payments:</strong> ₱\${totalCollected.toLocaleString('en-PH', {minimumFractionDigits: 2})}</li>
-        <li><strong>Total Expenses:</strong> ₱\${totalSpent.toLocaleString('en-PH', {minimumFractionDigits: 2})}</li>
-        <li><strong>Cash Position:</strong> ₱\${cashPosition.toLocaleString('en-PH', {minimumFractionDigits: 2})}</li>
-      </ul>
-      <hr/>
-      <p><strong>Prepared by:</strong> DANA ALTHEA R. RABO (Management Information Systems Analyst)</p>
-      <p><strong>Verified by:</strong> GODWIN TRISTAN P. VELASCO, PRC No. 0229444 (Civil Engineer)</p>
-      <p><strong>Approved by:</strong> CHRISTIAN A. VALEZA, PRC No. 0229445 (Civil Engineer)</p>
-      <p style="font-size: 12px; color: #64748b;">Generated from LEAFS (LIWO ENGINEERING ACCOUNTING AND FINANCE SYSTEM)</p>
-    </div>
-  \`;
-
-  const pdfBlob = ss.getAs('application/pdf').setName('LEAFS_Accounting_Report.pdf');
-  MailApp.sendEmail({
-    to: REPORT_RECIPIENTS.join(','),
-    replyTo: OFFICIAL_SENDER,
-    subject: subject,
-    htmlBody: htmlBody,
-    attachments: [pdfBlob]
-  });
-}
-
-function setupLeafsTriggers() {
-  ScriptApp.getProjectTriggers().forEach(t => ScriptApp.deleteTrigger(t));
-  ScriptApp.newTrigger('sendWeeklyAccountingReport')
-    .timeBased()
-    .onWeekDay(ScriptApp.Weekday.SATURDAY)
-    .atHour(17)
-    .create();
-  ScriptApp.newTrigger('sendMonthlyAccountingReport')
-    .timeBased()
-    .onMonthDay(1)
-    .atHour(8)
-    .create();
-}
-
-function jsonResponse(obj) {
-  return ContentService.createTextOutput(JSON.stringify(obj))
-    .setMimeType(ContentService.MimeType.JSON);
-}`;
+      return 'Use the latest Code.gs file supplied for LEAFS. Do not deploy the older embedded template; it uses full-sheet replacement and can erase shared records.';
     }
 
     // -----------------------------------------------------------------------
@@ -4417,6 +4242,11 @@ function jsonResponse(obj) {
 
       // Shared Google Sheets database is authoritative across devices and Chrome profiles.
       pullFullStateFromSheets(false);
+      // Refresh other users' changes automatically; do not pull while a local write is queued.
+      window.setInterval(() => {
+        if (document.visibilityState === 'visible' && !isPullingRemote && syncPending === 0) pullFullStateFromSheets(false);
+      }, 20000);
+      window.addEventListener('focus', () => pullFullStateFromSheets(false));
     });
 
     document.addEventListener('click', e => {
