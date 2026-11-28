@@ -1614,7 +1614,7 @@ const DEFAULT_GAS_WEB_APP_URL = DEFAULT_GAS_URL;
 
 const LEAFS_SHEET_URL =
   'https://docs.google.com/spreadsheets/d/1OyWubhX8Y8pab9i7C19yxbrk8fTFIM4_sDFFJK6QwQQ/edit';
-  
+
     const AUTHORIZED_QUICK_FILL_TEAM = [];
     const DEFAULT_TEAM_USERS = [];
 
@@ -3344,22 +3344,96 @@ function switchAuthMode(mode) {
           <input type="number" step="0.01" id="edit-pay-amount" value="${Number(item.amount) || 0}" class="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs font-bold" /></div>
         `;
       } else if (entityType === 'client') {
-        const item = appState.clients.find(c => c.id === id);
-        if (!item) return;
-        const linkedProj = appState.projects.find(p => p.id === item.projectId || (item.projectCode && p.code === item.projectCode));
-        const budgetVal = linkedProj ? linkedProj.contractBudget : item.contractBudget;
-        titleEl.textContent = 'Edit Client & Contract Budget';
-        html = `
-          <div><label class="block text-[11px] font-bold uppercase text-slate-500 mb-1">Client Name</label>
-          <input type="text" id="edit-cli-name" value="${escapeHtml(item.name || '')}" class="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs font-bold" /></div>
-          <div><label class="block text-[11px] font-bold uppercase text-slate-500 mb-1">Contact Person</label>
-          <input type="text" id="edit-cli-contact" value="${escapeHtml(item.contactPerson || '')}" class="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs" /></div>
-          <div><label class="block text-[11px] font-bold uppercase text-slate-500 mb-1">Phone</label>
-          <input type="text" id="edit-cli-phone" value="${escapeHtml(item.phone || '')}" class="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs" /></div>
-          <div><label class="block text-[11px] font-bold uppercase text-slate-500 mb-1">Address / Location</label>
-          <input type="text" id="edit-cli-address" value="${escapeHtml(item.address || '')}" class="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs" /></div>
-          <div><label class="block text-[11px] font-bold uppercase text-slate-500 mb-1">Contract Budget (₱)</label>
-          <input type="number" step="0.01" id="edit-cli-budget" value="${Number(budgetVal) || 0}" class="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs font-bold" /></div>
+        } else if (entityType === 'client') {
+  const item = appState.clients.find(c => c.id === id);
+  if (!item) return;
+
+  const linkedProj = appState.projects.find(p =>
+    p.id === item.projectId ||
+    (item.projectCode && p.code === item.projectCode)
+  );
+
+  const budgetVal = linkedProj
+    ? linkedProj.contractBudget
+    : item.contractBudget;
+
+  titleEl.textContent = 'Edit Client & Project Information';
+
+  html = `
+    <div>
+      <label class="block text-[11px] font-bold uppercase text-slate-500 mb-1">Client Name</label>
+      <input type="text" id="edit-cli-name"
+        value="${escapeHtml(item.name || '')}"
+        required
+        class="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs font-bold" />
+    </div>
+
+    <div>
+      <label class="block text-[11px] font-bold uppercase text-slate-500 mb-1">Contact Person</label>
+      <input type="text" id="edit-cli-contact"
+        value="${escapeHtml(item.contactPerson || '')}"
+        class="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs" />
+    </div>
+
+    <div>
+      <label class="block text-[11px] font-bold uppercase text-slate-500 mb-1">Phone</label>
+      <input type="text" id="edit-cli-phone"
+        value="${escapeHtml(item.phone || '')}"
+        class="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs" />
+    </div>
+
+    <div>
+      <label class="block text-[11px] font-bold uppercase text-slate-500 mb-1">Email Address</label>
+      <input type="email" id="edit-cli-email"
+        value="${escapeHtml(item.email || '')}"
+        class="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs" />
+    </div>
+
+    <div>
+      <label class="block text-[11px] font-bold uppercase text-slate-500 mb-1">Address / Location</label>
+      <input type="text" id="edit-cli-address"
+        value="${escapeHtml(item.address || '')}"
+        class="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs" />
+    </div>
+
+    <div>
+      <label class="block text-[11px] font-bold uppercase text-slate-500 mb-1">Client Status</label>
+      <select id="edit-cli-status"
+        class="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs font-semibold">
+        <option value="Active" ${item.status === 'Active' ? 'selected' : ''}>Active</option>
+        <option value="Pending" ${item.status === 'Pending' ? 'selected' : ''}>Pending</option>
+        <option value="Completed" ${item.status === 'Completed' ? 'selected' : ''}>Completed</option>
+      </select>
+    </div>
+
+    <div>
+      <label class="block text-[11px] font-bold uppercase text-slate-500 mb-1">Linked Project Title</label>
+      <input type="text" id="edit-cli-project-name"
+        value="${escapeHtml(item.projectName || linkedProj?.name || '')}"
+        required
+        class="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs" />
+    </div>
+
+    <div>
+      <label class="block text-[11px] font-bold uppercase text-slate-500 mb-1">Project Code</label>
+      <input type="text" id="edit-cli-project-code"
+        value="${escapeHtml(item.projectCode || linkedProj?.code || '')}"
+        required
+        class="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs font-mono uppercase" />
+    </div>
+
+    <div>
+      <label class="block text-[11px] font-bold uppercase text-slate-500 mb-1">Contract Budget (₱)</label>
+      <input type="number" step="0.01" min="0" id="edit-cli-budget"
+        value="${Number(budgetVal) || 0}"
+        class="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs font-bold" />
+    </div>
+
+    <div>
+      <label class="block text-[11px] font-bold uppercase text-slate-500 mb-1">Notes</label>
+      <textarea id="edit-cli-notes" rows="3"
+        class="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs">${escapeHtml(item.notes || '')}</textarea>
+    </div>
         `;
       } else if (entityType === 'bill') {
         const item = appState.bills.find(b => b.id === id);
@@ -3426,22 +3500,50 @@ function switchAuthMode(mode) {
           logAuditEvent('UPDATE', `Edited client payment ${item.reference} (${formatPeso(item.amount)}).`);
         }
       } else if (entityType === 'client') {
-        const item = appState.clients.find(c => c.id === id);
-        if (item) {
-          item.name = document.getElementById('edit-cli-name').value.trim().toUpperCase();
-          item.contactPerson = document.getElementById('edit-cli-contact').value.trim().toUpperCase();
-          item.phone = document.getElementById('edit-cli-phone').value.trim();
-          item.address = document.getElementById('edit-cli-address').value.trim();
-          const newBudget = parseFloat(document.getElementById('edit-cli-budget').value) || 0;
-          item.contractBudget = newBudget;
-          const linkedProj = appState.projects.find(p => p.id === item.projectId || (item.projectCode && p.code === item.projectCode));
-          if (linkedProj) {
-            linkedProj.clientName = item.name;
-            linkedProj.location = item.address;
-            linkedProj.contractBudget = newBudget;
-          }
-          logAuditEvent('UPDATE', `Updated client ${item.name} & contract budget (${formatPeso(newBudget)}).`);
-        }
+     } else if (entityType === 'client') {
+  const item = appState.clients.find(c => c.id === id);
+
+  if (item) {
+    const newName = document.getElementById('edit-cli-name').value.trim().toUpperCase();
+    const newProjectName = document.getElementById('edit-cli-project-name').value.trim();
+    const newProjectCode = document.getElementById('edit-cli-project-code').value.trim().toUpperCase();
+
+    if (!newName || !newProjectName || !newProjectCode) {
+      showToast('Client name, project title, and project code are required.', 'error');
+      return;
+    }
+
+    item.name = newName;
+    item.contactPerson = document.getElementById('edit-cli-contact').value.trim().toUpperCase();
+    item.phone = document.getElementById('edit-cli-phone').value.trim();
+    item.email = document.getElementById('edit-cli-email').value.trim();
+    item.address = document.getElementById('edit-cli-address').value.trim();
+    item.status = document.getElementById('edit-cli-status').value;
+    item.projectName = newProjectName;
+    item.projectCode = newProjectCode;
+    item.contractBudget = parseFloat(document.getElementById('edit-cli-budget').value) || 0;
+    item.notes = document.getElementById('edit-cli-notes').value.trim();
+
+    const linkedProj = appState.projects.find(p =>
+      p.id === item.projectId ||
+      (p.code && p.code === item.projectCode)
+    ) || appState.projects.find(p =>
+      p.id === item.projectId
+    );
+
+    if (linkedProj) {
+      linkedProj.clientName = item.name;
+      linkedProj.name = item.projectName;
+      linkedProj.code = item.projectCode;
+      linkedProj.location = item.address;
+      linkedProj.contractBudget = item.contractBudget;
+      linkedProj.status = item.status;
+    }
+logAuditEvent(
+  'UPDATE',
+  `Updated client $DIL1, contact details, project $DIL2, and contract budget ($DIL3).`
+);
+  } 
       } else if (entityType === 'bill') {
         const item = appState.bills.find(b => b.id === id);
         if (item) {
