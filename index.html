@@ -132,8 +132,7 @@
           <button type="button" id="auth-tab-login" onclick="switchAuthMode('login')" class="py-2 rounded-lg bg-white text-navy-900 font-bold text-xs shadow-xs transition">
             Sign In
           </button>
-          <button type="button" id="auth-tab-register" onclick="switchAuthMode('register')" class="py-2 rounded-lg text-slate-500 hover:text-navy-900 font-bold text-xs transition">
-            Create Account
+          <button type="button" id="auth-tab-register" class="hidden" aria-hidden="true">
           </button>
         </div>
 
@@ -154,7 +153,7 @@
           <div>
             <div class="flex items-center justify-between mb-1.5">
               <label for="login-password" class="block text-[11px] font-bold uppercase tracking-wider text-slate-500">Password</label>
-              <span id="login-password-status-hint" class="text-[11px] text-slate-400">Default: <code class="font-mono text-navy-900">liwo2026</code></span>
+              <span id="login-password-status-hint" class="text-[11px] text-slate-400"></span>
             </div>
             <div class="relative">
               <input type="password" id="login-password" required placeholder="Enter your password" autocomplete="current-password"
@@ -209,7 +208,7 @@
         </form>
 
         <!-- QUICK FILL ACCOUNT (AUTHORIZED TEAM) -->
-        <div id="quick-fill-section" class="pt-3 border-t border-slate-100 space-y-2.5" style="display: block !important; visibility: visible !important; opacity: 1 !important;">
+        <div id="quick-fill-section" class="hidden">
           <div class="flex items-center justify-between gap-2">
             <span class="text-[10px] font-extrabold uppercase tracking-wider text-slate-400">QUICK FILL ACCOUNT (AUTHORIZED TEAM)</span>
             <span class="text-[10px] font-semibold text-blue-600">Click to fill email</span>
@@ -1280,7 +1279,7 @@
                 <p id="acct-display-role" class="text-[11px] text-blue-700 font-semibold mt-0.5">Authorized Team</p>
               </div>
             </div>
-            <span id="acct-password-badge" class="px-3 py-1 rounded-full text-xs font-bold bg-amber-100 text-amber-800">Default Password (liwo2026)</span>
+            <span id="acct-password-badge" class="px-3 py-1 rounded-full text-xs font-bold bg-amber-100 text-amber-800">Password protected</span>
           </div>
 
           <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -1306,14 +1305,14 @@
             <form onsubmit="handleChangeAccountPassword(event)" class="leafs-subcard p-4 sm:p-5 space-y-3.5">
               <div class="flex items-center justify-between">
                 <h3 class="text-sm font-extrabold text-navy-900">Change Account Password</h3>
-                <button type="button" onclick="handleResetDefaultPassword()" class="text-[11px] font-bold text-slate-500 hover:text-rose-600">Reset to liwo2026</button>
+                
               </div>
               <div id="acct-sheets-sync-banner" class="px-3 py-2 rounded-xl bg-blue-50 border border-blue-200 text-[11px] font-semibold text-blue-900">
                 Password updates sync automatically to Google Sheets (<code class="font-mono">Users</code> tab).
               </div>
               <div>
                 <label class="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1">Current Password</label>
-                <input type="password" id="acct-current-pass" required placeholder="Enter current password (default: liwo2026)"
+                <input type="password" id="acct-current-pass" required placeholder="Enter your current password"
                   class="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 bg-white text-sm text-navy-900 outline-none focus:border-blue-500" />
               </div>
               <div>
@@ -1513,55 +1512,16 @@
   <!-- COMPLETE APPLICATION JAVASCRIPT                                         -->
   <!-- ======================================================================= -->
   <script>
-    const STORAGE_KEY = 'leafs_liwo_finance_state_v1';
-    const USERS_KEY = 'leafs_liwo_users_v1';
-    const SESSION_KEY = 'leafs_liwo_session_v1';
-    const SCRIPT_URL_KEY = 'leafs_gas_url';
+    const SESSION_KEY = 'leafs_liwo_session_v2';
+    const SESSION_KEY = 'leafs_liwo_session_v2';
+    const SCRIPT_URL_KEY = 'leafs_gas_url_v2';
     const LEGACY_SCRIPT_URL_KEY = 'leafs_liwo_apps_script_url_v1';
-    const DEFAULT_GAS_URL = 'https://script.google.com/macros/s/AKfycbwK8vfRoWytuM7Fa-U3fA_UuydqFWIEzkuVmc05DKjQaCXR-A-c9keNrPHkax4prc2O/exec';
+    const DEFAULT_GAS_URL = ''; // Paste the newly deployed LEAFS Apps Script Web App URL.
     const DEFAULT_GAS_WEB_APP_URL = DEFAULT_GAS_URL;
     const LEAFS_SHEET_URL = 'https://docs.google.com/spreadsheets/d/1OyWubhX8Y8pab9i7C19yxbrk8fTFIM4_sDFFJK6QwQQ/edit';
 
-    const AUTHORIZED_QUICK_FILL_TEAM = [
-      {
-        name: 'Dana Althea Rabo',
-        shortName: 'Dana Rabo',
-        role: 'Management Information Systems Analyst',
-        email: 'danaalthear@gmail.com',
-        passwordHash: 'liwo2026',
-        isDefaultPassword: true,
-        updatedAt: '2026-11-28 08:00:00'
-      },
-      {
-        name: 'Engr. Christian A. Valeza',
-        shortName: 'Christian Valeza',
-        role: 'Managing Partner & Civil Engineer • PRC No. 0229445',
-        email: 'valezachristian0821@gmail.com',
-        passwordHash: 'liwo2026',
-        isDefaultPassword: true,
-        updatedAt: '2026-11-28 08:00:00'
-      },
-      {
-        name: 'Engr. Godwin Tristan P. Velasco',
-        shortName: 'Tristan Velasco',
-        role: 'Co-Founder & Civil Engineer • PRC No. 0229444',
-        email: 'tristanvelasco4@gmail.com',
-        passwordHash: 'liwo2026',
-        isDefaultPassword: true,
-        updatedAt: '2026-11-28 08:00:00'
-      },
-      {
-        name: 'LIWO Official System',
-        shortName: 'LIWO Official',
-        role: 'Official Finance & Reporting Account',
-        email: 'liwoec@gmail.com',
-        passwordHash: 'liwo2026',
-        isDefaultPassword: true,
-        updatedAt: '2026-11-28 08:00:00'
-      }
-    ];
-
-    const DEFAULT_TEAM_USERS = AUTHORIZED_QUICK_FILL_TEAM;
+    const AUTHORIZED_QUICK_FILL_TEAM = [];
+    const DEFAULT_TEAM_USERS = [];
 
     function createInitialState() {
       return {
@@ -1573,7 +1533,7 @@
             name: '2-Storey Residential House-San Vicente',
             clientName: 'PUDOC SAN VICENTE RESIDENTIAL',
             location: 'Brgy. IV, Vigan City',
-            contractBudget: 1020000
+            contractBudget: 0
           }
         ],
         clients: [
@@ -1588,112 +1548,39 @@
             status: 'Active',
             projectCode: 'RES-2026-002',
             projectName: '2-Storey Residential House-San Vicente',
-            contractBudget: 1020000,
+            contractBudget: 0,
             notes: 'Primary residential construction contract'
           }
         ],
         transactions: [],
-        payments: [
-          {
-            id: 'pay-init-001',
-            projectId: 'proj-san-vicente-002',
-            date: '2026-11-01',
-            reference: 'OR-2026-0101',
-            description: 'Initial mobilization & downpayment',
-            amount: 145000,
-            method: 'Bank Transfer',
-            notes: 'Verified initial client collection'
-          }
-        ],
+        payments: [],
         bills: [],
         receipts: [],
-        notifications: [
-          {
-            id: 'notif-init-1',
-            type: 'CREATE',
-            message: 'Initialized LEAFS workspace for RES-2026-002 (2-Storey Residential House-San Vicente).',
-            actor: 'System',
-            timestamp: '2026-11-28 08:00:00',
-            read: false
-          }
-        ]
+        notifications: []
       };
     }
 
-    // Cloud-only mode: application data is never persisted in browser localStorage.
-    // This in-memory map is used only for transient UI/session values during this page load.
-    const memoryStorage = new Map();
+    // Business records are never stored in browser storage. Only the Web App URL
+    // (a connection preference) and short-lived authentication token are retained.
     function safeGetStorage(key) {
-      return memoryStorage.has(key) ? memoryStorage.get(key) : null;
+      try { return key === SCRIPT_URL_KEY ? (localStorage.getItem(key) || '') : null; } catch (_) { return null; }
     }
     function safeSetStorage(key, value) {
-      memoryStorage.set(key, String(value));
+      if (key === SCRIPT_URL_KEY) { try { localStorage.setItem(key, String(value)); } catch (_) {} }
     }
-    function safeRemoveStorage(key) {
-      memoryStorage.delete(key);
-    }
+    function safeRemoveStorage(key) { if (key === SCRIPT_URL_KEY) { try { localStorage.removeItem(key); } catch (_) {} } }
 
-    // Permanently bound to the hardcoded DEFAULT_GAS_URL so it works seamlessly on any device/session
     function getAppsScriptUrl() {
-      try {
-        const saved = (safeGetStorage(SCRIPT_URL_KEY) || safeGetStorage(LEGACY_SCRIPT_URL_KEY) || '').trim();
-        if (saved && saved.includes('script.google.com/macros/s/')) {
-          return saved;
-        }
-        safeSetStorage(SCRIPT_URL_KEY, DEFAULT_GAS_URL);
-        safeSetStorage(LEGACY_SCRIPT_URL_KEY, DEFAULT_GAS_URL);
-        return DEFAULT_GAS_URL;
-      } catch (_) {
-        return DEFAULT_GAS_URL;
-      }
+      const saved = (safeGetStorage(SCRIPT_URL_KEY) || '').trim();
+      return saved && saved.includes('script.google.com/macros/s/') ? saved : DEFAULT_GAS_URL;
     }
-
-    function loadUsers() {
-      try {
-        const raw = safeGetStorage(USERS_KEY);
-        if (!raw) {
-          safeSetStorage(USERS_KEY, JSON.stringify(AUTHORIZED_QUICK_FILL_TEAM));
-          return AUTHORIZED_QUICK_FILL_TEAM.map(u => ({ ...u }));
-        }
-        const parsed = JSON.parse(raw);
-        if (!Array.isArray(parsed) || parsed.length === 0) {
-          return AUTHORIZED_QUICK_FILL_TEAM.map(u => ({ ...u }));
-        }
-        const merged = parsed.map(u => ({
-          ...u,
-          email: String(u.email || '').trim().toLowerCase(),
-          passwordHash: u.passwordHash || 'liwo2026'
-        }));
-        AUTHORIZED_QUICK_FILL_TEAM.forEach(def => {
-          if (!merged.some(u => u.email.toLowerCase() === def.email.toLowerCase())) {
-            merged.push({ ...def });
-          }
-        });
-        return merged;
-      } catch (_) {
-        return AUTHORIZED_QUICK_FILL_TEAM.map(u => ({ ...u }));
-      }
-    }
-
-    function saveUsers(users) {
-      safeSetStorage(USERS_KEY, JSON.stringify(users));
-    }
-
     function loadSession() {
-      try {
-        const raw = safeGetStorage(SESSION_KEY);
-        return raw ? JSON.parse(raw) : null;
-      } catch (_) {
-        return null;
-      }
+      try { return JSON.parse(sessionStorage.getItem(SESSION_KEY) || 'null'); } catch (_) { return null; }
+    }
+    function saveSession(value) {
+      try { if (value) sessionStorage.setItem(SESSION_KEY, JSON.stringify(value)); else sessionStorage.removeItem(SESSION_KEY); } catch (_) {}
     }
 
-    function saveSession(sessionObj) {
-      if (sessionObj) safeSetStorage(SESSION_KEY, JSON.stringify(sessionObj));
-      else safeRemoveStorage(SESSION_KEY);
-    }
-
-    let usersList = loadUsers();
     let currentUser = loadSession();
     let selectedQuickFillEmail = '';
     let appState = createInitialState();
@@ -1704,31 +1591,7 @@
     let editContext = null;
     let deleteContext = null;
 
-    function loadAppState() {
-      try {
-        const raw = safeGetStorage(STORAGE_KEY);
-        if (!raw) return createInitialState();
-        const parsed = JSON.parse(raw);
-        const base = createInitialState();
-        const merged = {
-          ...base,
-          ...parsed,
-          projects: Array.isArray(parsed.projects) && parsed.projects.length ? parsed.projects : base.projects,
-          clients: Array.isArray(parsed.clients) && parsed.clients.length ? parsed.clients : base.clients,
-          transactions: Array.isArray(parsed.transactions) ? parsed.transactions : [],
-          payments: Array.isArray(parsed.payments) ? parsed.payments : base.payments,
-          bills: Array.isArray(parsed.bills) ? parsed.bills : [],
-          receipts: Array.isArray(parsed.receipts) ? parsed.receipts : [],
-          notifications: Array.isArray(parsed.notifications) && parsed.notifications.length ? parsed.notifications : base.notifications
-        };
-        if (!merged.projects.some(p => p.id === merged.activeProjectId)) {
-          merged.activeProjectId = merged.projects[0].id;
-        }
-        return merged;
-      } catch (_) {
-        return createInitialState();
-      }
-    }
+    function loadAppState() { return createInitialState(); }
 
     appState = loadAppState();
     let lastSavedSnapshot = JSON.parse(JSON.stringify(appState));
@@ -1946,123 +1809,9 @@
       box.textContent = msg;
     }
 
-    function getTeamAccountsForQuickFill() {
-      let stored = [];
-      try {
-        stored = loadUsers();
-      } catch (_) {
-        stored = AUTHORIZED_QUICK_FILL_TEAM.slice();
-      }
-      return AUTHORIZED_QUICK_FILL_TEAM.map(def => {
-        const found = Array.isArray(stored)
-          ? stored.find(u => String(u.email || '').toLowerCase() === def.email.toLowerCase())
-          : null;
-        return {
-          name: (found && found.name) || def.name,
-          shortName: (found && found.shortName) || def.shortName,
-          role: (found && found.role) || def.role,
-          email: def.email,
-          passwordHash: (found && found.passwordHash) || def.passwordHash || 'liwo2026',
-          isDefaultPassword: found ? (found.isDefaultPassword !== false) : true
-        };
-      });
-    }
-
-    function renderQuickFillAccounts() {
-      const grid = document.getElementById('quick-fill-grid');
-      if (!grid) return;
-
-      const section = document.getElementById('quick-fill-section');
-      if (section) {
-        section.style.setProperty('display', 'block', 'important');
-        section.style.setProperty('visibility', 'visible', 'important');
-        section.style.setProperty('opacity', '1', 'important');
-      }
-
-      grid.style.setProperty('display', 'grid', 'important');
-      grid.style.setProperty('visibility', 'visible', 'important');
-      grid.style.setProperty('opacity', '1', 'important');
-
-      const accounts = getTeamAccountsForQuickFill();
-      grid.innerHTML = accounts.map(acc => {
-        const isSelected = selectedQuickFillEmail && selectedQuickFillEmail.toLowerCase() === acc.email.toLowerCase();
-        const cardBorder = isSelected
-          ? 'border-blue-500 ring-1 ring-blue-500 bg-white'
-          : 'border-slate-200 bg-slate-50/80 hover:bg-blue-50/50 hover:border-blue-300';
-        const dotColor = isSelected ? 'bg-emerald-500' : 'bg-blue-500';
-        return `
-          <button type="button"
-            onclick="handleQuickFillCardClick('${escapeHtml(acc.email)}')"
-            class="quick-fill-card w-full text-left flex-col justify-between gap-1 cursor-pointer focus:outline-none ${cardBorder}">
-            <div class="flex items-start justify-between gap-2 w-full min-w-0">
-              <div class="min-w-0 flex-1">
-                <p class="text-xs font-extrabold text-navy-900 leading-tight truncate">${escapeHtml(acc.name)}</p>
-                <p class="text-[11px] font-mono text-slate-500 truncate mt-0.5">${escapeHtml(acc.email)}</p>
-              </div>
-              <span class="w-2 h-2 rounded-full ${dotColor} shrink-0 mt-1"></span>
-            </div>
-          </button>
-        `;
-      }).join('');
-    }
-
-    function renderQuickLoginGrid() {
-      renderQuickFillAccounts();
-    }
-
-    function handleQuickFillCardClick(email) {
-      const targetEmail = String(email || '').trim().toLowerCase();
-      const accounts = getTeamAccountsForQuickFill();
-      const match = accounts.find(u => u.email.toLowerCase() === targetEmail) ||
-        AUTHORIZED_QUICK_FILL_TEAM.find(u => u.email.toLowerCase() === targetEmail);
-
-      selectedQuickFillEmail = targetEmail;
-      showAuthFeedback('');
-
-      const emailInput = document.getElementById('login-email');
-      const passInput = document.getElementById('login-password');
-      const banner = document.getElementById('account-selection-banner');
-      const hint = document.getElementById('login-password-status-hint');
-
-      if (emailInput) emailInput.value = targetEmail;
-      if (passInput) {
-        passInput.value = '';
-        passInput.focus();
-      }
-
-      const hasCustomPass = match && match.isDefaultPassword === false && match.passwordHash && match.passwordHash !== 'liwo2026';
-      if (hint) {
-        hint.innerHTML = hasCustomPass
-          ? `<span class="text-emerald-700 font-bold">Custom password active</span>`
-          : `Default: <code class="font-mono text-navy-900">liwo2026</code>`;
-      }
-
-      if (banner && match) {
-        banner.classList.remove('hidden');
-        banner.textContent = `Account selected: ${match.name}. Enter your custom password to sign in.`;
-      }
-
-      renderQuickFillAccounts();
-    }
-
-    function quickFillAccount(email) {
-      handleQuickFillCardClick(email);
-    }
-
-    function quickSignInAccount(email) {
-      const targetEmail = String(email || '').trim().toLowerCase();
-      handleQuickFillCardClick(targetEmail);
-      const accounts = getTeamAccountsForQuickFill();
-      const match = accounts.find(u => u.email.toLowerCase() === targetEmail);
-      const passInput = document.getElementById('login-password');
-      if (passInput && match && (match.isDefaultPassword !== false || match.passwordHash === 'liwo2026')) {
-        passInput.value = match.passwordHash || 'liwo2026';
-      }
-      handleLogin();
-    }
-
+    function renderQuickFillAccounts() { return; }
     function switchAuthMode(mode) {
-      const isLogin = mode === 'login';
+      const isLogin = true;
       const loginForm = document.getElementById('login-form');
       const regForm = document.getElementById('register-form');
       const tabLogin = document.getElementById('auth-tab-login');
@@ -2096,138 +1845,37 @@
       }
     }
 
-    function completeUserAuthentication(user, methodLabel = 'Sign-In') {
-      currentUser = {
-        name: user.name || user.email,
-        shortName: user.shortName || (user.name ? user.name.split(' ')[0] : 'Team'),
-        role: user.role || 'Authorized Team Member',
-        email: String(user.email || '').trim().toLowerCase(),
-        isDefaultPassword: user.isDefaultPassword !== false
-      };
+    function completeUserAuthentication(result) {
+      currentUser = { ...result.user, token: result.token, email: String(result.user.email || '').toLowerCase() };
       saveSession(currentUser);
-      logAuditEvent('LOGIN', `${currentUser.name} (${currentUser.email}) signed in via ${methodLabel}.`);
-      saveState(false);
       enterAuthenticatedWorkspace();
+      pullFullStateFromSheets(false);
+      showToast(`Welcome to LEAFS, ${currentUser.name || currentUser.fullName}!`);
+    }
+
+    async function handleLogin(e) {
+      if (e) e.preventDefault();
+      showAuthFeedback('');
+      const email = (document.getElementById('login-email')?.value || '').trim().toLowerCase();
+      const password = document.getElementById('login-password')?.value || '';
+      if (!email || !password) { showAuthFeedback('Enter your authorized email and password.', 'error'); return; }
       try {
-        upsertUserToGoogleSheets(user);
-      } catch (_) {}
-      showToast(`Welcome to LEAFS, ${currentUser.name}!`);
+        const result = await postLeafsAction({ action: 'login', email, password });
+        if (!result || !result.ok || !result.token || !result.user) throw new Error(result?.error || 'Sign-in was not confirmed.');
+        const pass = document.getElementById('login-password'); if (pass) pass.value = '';
+        completeUserAuthentication(result);
+      } catch (err) { showAuthFeedback(err.message || 'Unable to sign in. Check the connection.', 'error'); }
     }
 
-    function handleLogin(e) {
-      if (e) e.preventDefault();
-      showAuthFeedback('');
-      usersList = loadUsers();
+    function handleRegister(e) { if (e) e.preventDefault(); showAuthFeedback('New accounts can only be created by an authorized administrator in the Users sheet.','error'); }
 
-      const emailVal = (document.getElementById('login-email')?.value || '').trim().toLowerCase();
-      const passInput = document.getElementById('login-password');
-      let passVal = (passInput?.value || '').trim();
-
-      if (!emailVal) {
-        showAuthFeedback('Please enter or select an authorized email address.', 'error');
-        return;
-      }
-
-      let user = usersList.find(u => u.email.toLowerCase() === emailVal);
-      if (!user) {
-        const teamMatch = AUTHORIZED_QUICK_FILL_TEAM.find(u => u.email.toLowerCase() === emailVal);
-        if (teamMatch) {
-          user = { ...teamMatch };
-          usersList.push(user);
-          saveUsers(usersList);
-        }
-      }
-
-      if (!passVal && user && (user.isDefaultPassword !== false || (user.passwordHash || 'liwo2026') === 'liwo2026')) {
-        passVal = 'liwo2026';
-        if (passInput) passInput.value = passVal;
-      }
-
-      if (!passVal) {
-        showAuthFeedback('Please enter your password to sign in.', 'error');
-        return;
-      }
-
-      if (!user) {
-        user = {
-          name: emailVal.split('@')[0],
-          shortName: emailVal.split('@')[0],
-          role: 'Authorized Team Member',
-          email: emailVal,
-          passwordHash: passVal,
-          isDefaultPassword: passVal === 'liwo2026',
-          updatedAt: getFormattedTimestamp()
-        };
-        usersList.push(user);
-        saveUsers(usersList);
-      }
-
-      const storedPass = user.passwordHash || 'liwo2026';
-      if (passVal !== storedPass && passVal !== 'liwo2026') {
-        showAuthFeedback('Incorrect password for this account. Try again or enter the valid password.', 'error');
-        return;
-      }
-
-      if (passVal === 'liwo2026' && storedPass !== 'liwo2026') {
-        user.passwordHash = 'liwo2026';
-        user.isDefaultPassword = true;
-        saveUsers(usersList);
-      }
-
-      completeUserAuthentication(user, 'Credentials');
-    }
-
-    function handleRegister(e) {
-      if (e) e.preventDefault();
-      showAuthFeedback('');
-      usersList = loadUsers();
-
-      const name = (document.getElementById('reg-name')?.value || '').trim();
-      const role = (document.getElementById('reg-role')?.value || '').trim();
-      const email = (document.getElementById('reg-email')?.value || '').trim().toLowerCase();
-      const password = (document.getElementById('reg-password')?.value || '').trim();
-
-      if (!name || !role || !email || password.length < 6) {
-        showAuthFeedback('Please complete all fields (password must be at least 6 characters).', 'error');
-        return;
-      }
-
-      const existingIdx = usersList.findIndex(u => u.email.toLowerCase() === email);
-      const newUser = {
-        name,
-        shortName: name.split(' ').slice(0, 2).join(' '),
-        role,
-        email,
-        passwordHash: password,
-        isDefaultPassword: password === 'liwo2026',
-        updatedAt: getFormattedTimestamp()
-      };
-
-      if (existingIdx >= 0) {
-        usersList[existingIdx] = { ...usersList[existingIdx], ...newUser };
-      } else {
-        usersList.push(newUser);
-      }
-      saveUsers(usersList);
-
-      const regForm = document.getElementById('register-form');
-      if (regForm) regForm.reset();
-
-      completeUserAuthentication(newUser, 'Account Registration');
-    }
-
-    function handleLogout() {
-      if (currentUser) {
-        logAuditEvent('LOGOUT', `${currentUser.name} signed out of LEAFS.`);
-        saveState(false);
-      }
-      currentUser = null;
-      saveSession(null);
+    async function handleLogout() {
+      const token = currentUser?.token;
+      try { if (token) await postLeafsAction({ action: 'logout', token }); } catch (_) {}
+      currentUser = null; saveSession(null);
       document.getElementById('app-workspace')?.classList.add('hidden');
       document.getElementById('auth-gate')?.classList.remove('hidden');
-      switchAuthMode('login');
-      renderQuickFillAccounts();
-      syncSheetsStatusIndicators();
+      switchAuthMode('login'); syncSheetsStatusIndicators();
       showToast('Signed out of LEAFS.');
     }
 
@@ -2250,137 +1898,42 @@
 
     function populateAccountTab() {
       if (!currentUser) return;
-      usersList = loadUsers();
-      const fullUser = usersList.find(u => u.email.toLowerCase() === currentUser.email.toLowerCase()) || currentUser;
-
-      document.getElementById('acct-avatar-initials').textContent = getInitials(fullUser.name);
-      document.getElementById('acct-display-name').textContent = fullUser.name;
-      document.getElementById('acct-display-email').textContent = fullUser.email;
-      document.getElementById('acct-display-role').textContent = fullUser.role || 'Authorized Team';
-      document.getElementById('acct-edit-name').value = fullUser.name;
-      document.getElementById('acct-edit-role').value = fullUser.role || '';
-      document.getElementById('acct-edit-email').value = fullUser.email;
-
-      const isDefault = fullUser.isDefaultPassword !== false;
-      const badge = document.getElementById('acct-password-badge');
-      if (badge) {
-        badge.textContent = isDefault ? 'Default Password (liwo2026)' : 'Custom Password Active';
-        badge.className = isDefault
-          ? 'px-3 py-1 rounded-full text-xs font-bold bg-amber-100 text-amber-800'
-          : 'px-3 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800';
-      }
+      const name=currentUser.name||currentUser.fullName||currentUser.email;
+      document.getElementById('acct-avatar-initials').textContent=getInitials(name);
+      document.getElementById('acct-display-name').textContent=name;
+      document.getElementById('acct-display-email').textContent=currentUser.email;
+      document.getElementById('acct-display-role').textContent=currentUser.role||'Authorized Team';
+      document.getElementById('acct-edit-name').value=name;
+      document.getElementById('acct-edit-role').value=currentUser.role||'';
+      document.getElementById('acct-edit-email').value=currentUser.email;
+      const badge=document.getElementById('acct-password-badge');
+      if(badge){badge.textContent='Password protected by Google Sheets authentication';badge.className='px-3 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800';}
     }
 
-    function handleUpdateAccountProfile(e) {
-      e.preventDefault();
-      if (!currentUser) return;
-      const newName = document.getElementById('acct-edit-name').value.trim();
-      const newRole = document.getElementById('acct-edit-role').value.trim();
-      if (!newName || !newRole) return;
-
-      usersList = loadUsers();
-      const idx = usersList.findIndex(u => u.email.toLowerCase() === currentUser.email.toLowerCase());
-      const updatedUser = {
-        ...(idx >= 0 ? usersList[idx] : currentUser),
-        name: newName,
-        shortName: newName.split(' ').slice(0, 2).join(' '),
-        role: newRole,
-        updatedAt: getFormattedTimestamp()
-      };
-      if (idx >= 0) usersList[idx] = updatedUser;
-      else usersList.push(updatedUser);
-      saveUsers(usersList);
-
-      currentUser = {
-        ...currentUser,
-        name: updatedUser.name,
-        shortName: updatedUser.shortName,
-        role: updatedUser.role
-      };
-      saveSession(currentUser);
-      updateUserHeaderUI();
-      populateAccountTab();
-      renderQuickFillAccounts();
-      logAuditEvent('UPDATE', `Updated profile details for ${currentUser.email}.`);
-      upsertUserToGoogleSheets(updatedUser);
-      saveState(false);
-      showToast('Profile updated & synced to Google Sheets!');
+    async function handleUpdateAccountProfile(e) {
+      e.preventDefault(); if(!currentUser)return;
+      const name=document.getElementById('acct-edit-name').value.trim();
+      const role=document.getElementById('acct-edit-role').value.trim();
+      try { const result=await postLeafsAction({action:'updateProfile',token:currentUser.token,name,role});
+        currentUser={...currentUser,...result.user}; saveSession(currentUser); updateUserHeaderUI(); populateAccountTab();
+        showToast('Profile updated in Google Sheets.');
+      } catch(err){showToast(err.message||'Could not update profile.','error');}
     }
 
-    function handleChangeAccountPassword(e) {
-      e.preventDefault();
-      if (!currentUser) return;
-      usersList = loadUsers();
-      const idx = usersList.findIndex(u => u.email.toLowerCase() === currentUser.email.toLowerCase());
-      const userRecord = idx >= 0 ? usersList[idx] : { ...currentUser, passwordHash: 'liwo2026' };
-
-      const currentPass = document.getElementById('acct-current-pass').value.trim();
-      const newPass = document.getElementById('acct-new-pass').value.trim();
-      const confirmPass = document.getElementById('acct-confirm-pass').value.trim();
-
-      const activeStoredPass = userRecord.passwordHash || 'liwo2026';
-      if (currentPass !== activeStoredPass && currentPass !== 'liwo2026') {
-        showToast('Current password does not match.', 'error');
-        return;
-      }
-      if (newPass.length < 6) {
-        showToast('New password must be at least 6 characters.', 'error');
-        return;
-      }
-      if (newPass !== confirmPass) {
-        showToast('New password and confirmation do not match.', 'error');
-        return;
-      }
-
-      userRecord.passwordHash = newPass;
-      userRecord.isDefaultPassword = newPass === 'liwo2026';
-      userRecord.updatedAt = getFormattedTimestamp();
-
-      if (idx >= 0) usersList[idx] = userRecord;
-      else usersList.push(userRecord);
-      saveUsers(usersList);
-
-      currentUser.isDefaultPassword = userRecord.isDefaultPassword;
-      saveSession(currentUser);
-
-      document.getElementById('acct-current-pass').value = '';
-      document.getElementById('acct-new-pass').value = '';
-      document.getElementById('acct-confirm-pass').value = '';
-
-      const banner = document.getElementById('acct-sheets-sync-banner');
-      if (banner) {
-        banner.textContent = `Password updated at ${userRecord.updatedAt} and queued for Google Sheets (Users tab).`;
-      }
-
-      populateAccountTab();
-      renderQuickFillAccounts();
-      logAuditEvent('UPDATE', `Changed password for ${currentUser.email} (synced to Google Sheets Users tab).`);
-      upsertUserToGoogleSheets(userRecord);
-      saveState(false);
-      showToast('Password updated & synced to Google Sheets!');
+    async function handleChangeAccountPassword(e) {
+      e.preventDefault(); if(!currentUser)return;
+      const currentPassword=document.getElementById('acct-current-pass').value;
+      const newPassword=document.getElementById('acct-new-pass').value;
+      const confirmPassword=document.getElementById('acct-confirm-pass').value;
+      if(newPassword.length<10){showToast('Use at least 10 characters for the new password.','error');return;}
+      if(newPassword!==confirmPassword){showToast('New password and confirmation do not match.','error');return;}
+      try { await postLeafsAction({action:'changePassword',token:currentUser.token,currentPassword,newPassword});
+        ['acct-current-pass','acct-new-pass','acct-confirm-pass'].forEach(id=>document.getElementById(id).value='');
+        showToast('Password changed securely in Google Sheets.');
+      } catch(err){showToast(err.message||'Could not change password.','error');}
     }
 
-    function handleResetDefaultPassword() {
-      if (!currentUser) return;
-      usersList = loadUsers();
-      const idx = usersList.findIndex(u => u.email.toLowerCase() === currentUser.email.toLowerCase());
-      const userRecord = idx >= 0 ? usersList[idx] : { ...currentUser };
-      userRecord.passwordHash = 'liwo2026';
-      userRecord.isDefaultPassword = true;
-      userRecord.updatedAt = getFormattedTimestamp();
-      if (idx >= 0) usersList[idx] = userRecord;
-      else usersList.push(userRecord);
-      saveUsers(usersList);
-
-      currentUser.isDefaultPassword = true;
-      saveSession(currentUser);
-      populateAccountTab();
-      renderQuickFillAccounts();
-      logAuditEvent('UPDATE', `Reset password to default (liwo2026) for ${currentUser.email}.`);
-      upsertUserToGoogleSheets(userRecord);
-      saveState(false);
-      showToast('Password reset to default (liwo2026) & synced to Google Sheets!');
-    }
+    function handleResetDefaultPassword() { showToast('Default password resets are disabled. Use Change Password or ask the system administrator.','error'); }
 
     // -----------------------------------------------------------------------
     // NAVIGATION DRAWER & PAGE SWITCHING
@@ -3346,7 +2899,6 @@
       if (receipt) { receipt.driveUrl = upload.driveUrl; receipt.dataUrl = ''; receipt.uploadStatus = 'uploaded'; }
       const tx = appState.transactions.find(t => t.id === info.transactionId);
       if (tx) { tx.receiptDriveUrl = upload.driveUrl; tx.receiptFileName = info.fileName; }
-      safeSetStorage(STORAGE_KEY, JSON.stringify(appState));
       lastSavedSnapshot = JSON.parse(JSON.stringify(appState));
       refreshAllViews();
       return true;
@@ -3354,23 +2906,17 @@
 
     async function postLeafsAction(payload) {
       const url = getAppsScriptUrl();
-      if (!url) throw new Error('Apps Script URL is not configured.');
-      // Apps Script web apps commonly redirect POSTs; text/plain avoids preflight.
-      await fetch(url, { method: 'POST', mode: 'no-cors', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(payload) });
-      // POST response is opaque in no-cors mode. Verify by reading the server state.
-      await new Promise(resolve => setTimeout(resolve, 900));
-      for (let attempt = 0; attempt < 4; attempt++) {
-        const check = await fetch(`${url}?action=getAll&_t=${Date.now()}`, { cache: 'no-store' });
-        const result = await check.json();
-        if (!result || result.ok === false) throw new Error(result?.error || 'Could not verify the Apps Script response.');
-        if (payload.action !== 'uploadReceipt') return result;
-        const rows = result.clientData?.receipts || result.data?.Receipts || [];
-        const saved = rows.find(r => String(r.id || r.ID || '') === String(payload.id));
-        const driveUrl = saved?.driveUrl || saved?.DriveUrl || '';
-        if (driveUrl) return { ok: true, receipt: saved, driveUrl };
-        await new Promise(resolve => setTimeout(resolve, 700));
+      if (!url) throw new Error('Paste the newly deployed Apps Script Web App URL in Settings → Google Sheets.');
+      const requestId = 'req-' + Date.now() + '-' + Math.random().toString(36).slice(2);
+      const body = { ...payload, requestId };
+      await fetch(url, { method: 'POST', mode: 'no-cors', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(body) });
+      for (let attempt = 0; attempt < 15; attempt++) {
+        await new Promise(resolve => setTimeout(resolve, 450));
+        const response = await fetch(`${url}?action=result&requestId=${encodeURIComponent(requestId)}&_=${Date.now()}`, { cache: 'no-store' });
+        const envelope = await response.json();
+        if (envelope?.result) { if (!envelope.result.ok) throw new Error(envelope.result.error || 'The server rejected the request.'); return envelope.result; }
       }
-      throw new Error('The upload request was sent, but no matching Drive receipt record was found. Check the Apps Script execution log.');
+      throw new Error('The server did not confirm the request. Check Apps Script deployment and execution logs.');
     }
 
     function setReceiptViewMode(mode) {
@@ -4027,7 +3573,6 @@
     // GOOGLE SHEETS & DRIVE 2-WAY SYNC + CODE.GS
     // -----------------------------------------------------------------------
     function saveState(pushToRemote = true) {
-      safeSetStorage(STORAGE_KEY, JSON.stringify(appState));
       if (pushToRemote && !isPullingRemote) {
         const previous = lastSavedSnapshot || {};
         const current = JSON.parse(JSON.stringify(appState));
@@ -4051,13 +3596,13 @@
 
     function syncSheetsStatusIndicators() {
       const url = getAppsScriptUrl();
-      const connected = Boolean(url && url.includes('script.google.com'));
+      const connected = Boolean(url && url.includes('script.google.com/macros/s/'));
       const dot = document.getElementById('sheets-status-dot');
       const loginDot = document.getElementById('login-sheets-dot');
       const loginText = document.getElementById('login-sheets-status-text');
       if (dot) dot.className = connected ? 'w-2 h-2 rounded-full bg-emerald-500' : 'w-2 h-2 rounded-full bg-amber-400';
       if (loginDot) loginDot.className = connected ? 'w-2 h-2 rounded-full bg-emerald-500 shrink-0' : 'w-2 h-2 rounded-full bg-amber-400 shrink-0';
-      if (loginText) loginText.textContent = connected ? 'Google Sheets Connected (Permanent)' : 'Cloud database connection required';
+      if (loginText) loginText.textContent = connected ? 'Apps Script URL configured — sign-in verifies connection' : 'Paste the deployed Apps Script URL in Settings';
     }
 
     function openSheetsModal() {
@@ -4097,33 +3642,13 @@
     }
 
     async function pushChangedRecordsToSheets(changed, deleted = {}, showFeedbackToast = false) {
-      const url = getAppsScriptUrl();
-      if (!url) return false;
-      const payload = { action: 'syncChanges', data: changed || {}, deleted: deleted || {} };
+      if (!getAppsScriptUrl()) return false;
+      const payload = { action: 'syncChanges', token: currentUser?.token, data: changed || {}, deleted: deleted || {} };
       syncPending++;
       syncQueue = syncQueue.then(async () => {
         try {
-          // Confirm the opaque Apps Script POST by reading the authoritative cloud database.
-          const serverState = await postLeafsAction(payload);
-          const remote = serverState && (serverState.clientData || serverState.data);
-          if (!remote) throw new Error('The shared database did not return its saved records.');
-          Object.keys(changed || {}).forEach(key => {
-            const rows = Array.isArray(remote[key]) ? remote[key] : [];
-            (changed[key] || []).forEach(row => {
-              const id = String(row.id || row.ID || '').trim();
-              if (id && !rows.some(saved => String(saved.id || saved.ID || '').trim() === id)) {
-                throw new Error('The server did not confirm saving ' + key + ' record ' + id + '.');
-              }
-            });
-          });
-          Object.keys(deleted || {}).forEach(key => {
-            const rows = Array.isArray(remote[key]) ? remote[key] : [];
-            (deleted[key] || []).forEach(id => {
-              if (rows.some(saved => String(saved.id || saved.ID || '').trim() === String(id))) {
-                throw new Error('The server did not confirm deleting ' + key + ' record ' + id + '.');
-              }
-            });
-          });
+          const result = await postLeafsAction(payload);
+          if (!result || !result.ok) throw new Error(result?.error || 'The server did not confirm the save.');
           const refreshed = await pullFullStateFromSheets(false);
           if (!refreshed) throw new Error('The write was sent, but the shared database could not be refreshed.');
           if (showFeedbackToast) showToast('Changes saved to the shared LEAFS database.', 'success');
@@ -4145,39 +3670,27 @@
       return ok;
     }
 
-    async function upsertUserToGoogleSheets(userObj) {
-      const url = getAppsScriptUrl();
-      if (!url) return;
-      try {
-        await fetch(url, {
-          method: 'POST',
-          mode: 'no-cors',
-          headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-          body: JSON.stringify({
-            action: 'upsertUser',
-            user: userObj
-          })
-        });
-      } catch (_) {}
-    }
-
     async function pullFullStateFromSheets(showFeedbackToast = false) {
       const url = getAppsScriptUrl();
       if (!url) return false;
       try {
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 15000);
-        const res = await fetch(`${url}?action=getAll&_t=${Date.now()}`, { signal: controller.signal, cache: 'no-store' });
+        if (!currentUser?.token) return false;
+        const res = await fetch(`${url}?action=getAll&token=${encodeURIComponent(currentUser.token)}&_t=${Date.now()}`, { signal: controller.signal, cache: 'no-store' });
         clearTimeout(timeoutId);
         if (!res.ok) throw new Error('HTTP ' + res.status);
         const response = await res.json();
         if (!response || response.ok === false) throw new Error(response?.error || 'Invalid server response');
-        const data = response.clientData || response.data || response;
+        const data = response.data || response.clientData || response;
         isPullingRemote = true;
         const camelRows = (rows, tab) => (Array.isArray(rows) ? rows : []).map(row => {
           const o = {};
           Object.keys(row || {}).forEach(k => o[k.charAt(0).toLowerCase() + k.slice(1)] = row[k]);
-          if (tab === 'projects') { o.clientName = o.clientName || o.client || ''; }
+          if (tab === 'projects') { o.clientName = o.clientName || o.client || ''; o.id = o.id || o.ID; o.code=o.code||o.Code; o.name=o.name||o.Name; }
+          if (tab === 'clients') { const cp=appState.projects.find(x=>x.code===o.projectCode||x.id===o.projectCode); o.projectId=o.projectId||cp?.id||o.projectCode||''; o.name=o.name||o.Name; }
+          if (tab === 'auditLogs') { o.type=o.action||o.type||'EVENT'; o.message=o.details||o.message||o.targetLabel||''; o.actor=o.actorName||o.actor||''; o.read=!!o.read; }
+          if (['transactions','payments','bills','receipts'].includes(tab)) { const p = appState.projects.find(x => x.code === o.projectCode || x.id === o.projectCode); o.projectId = o.projectId || p?.id || o.projectCode || ''; }
           if (tab === 'transactions' || tab === 'payments') o.method = o.method || o.paymentMethod || '';
           if (tab === 'receipts') {
             o.title = o.title || o.fileName || '';
@@ -4194,17 +3707,7 @@
         if (Array.isArray(data.bills)) appState.bills = camelRows(data.bills, 'bills');
         if (Array.isArray(data.receipts)) appState.receipts = camelRows(data.receipts, 'receipts');
         if (Array.isArray(data.auditLogs)) appState.notifications = camelRows(data.auditLogs, 'auditLogs');
-        if (Array.isArray(data.users) && data.users.length) {
-          const remoteUsers = data.users.map(u => ({
-            name: u.fullName || u.name || u.email, shortName: String(u.fullName || u.name || u.email).split(' ').slice(0,2).join(' '),
-            role: u.role || 'Authorized Team', email: String(u.email || '').toLowerCase(),
-            passwordHash: u.password || u.passwordHash || 'liwo2026', isDefaultPassword: !(u.password || u.passwordHash),
-            updatedAt: u.updatedAt || getFormattedTimestamp()
-          })).filter(u => u.email);
-          if (remoteUsers.length) saveUsers(remoteUsers);
-        }
         if (appState.projects.length && !appState.projects.some(p => p.id === appState.activeProjectId)) appState.activeProjectId = appState.projects[0].id;
-        safeSetStorage(STORAGE_KEY, JSON.stringify(appState));
         lastSavedSnapshot = JSON.parse(JSON.stringify(appState));
         isPullingRemote = false;
         if (currentUser) refreshAllViews();
@@ -4231,8 +3734,7 @@
     // -----------------------------------------------------------------------
     window.addEventListener('DOMContentLoaded', () => {
       // Ensure DEFAULT_GAS_URL is permanently written and active on every load
-      safeSetStorage(SCRIPT_URL_KEY, DEFAULT_GAS_URL);
-      safeSetStorage(LEGACY_SCRIPT_URL_KEY, DEFAULT_GAS_URL);
+      if (getAppsScriptUrl()) safeSetStorage(SCRIPT_URL_KEY, getAppsScriptUrl());
 
       const txDateEl = document.getElementById('tx-date');
       const payDateEl = document.getElementById('pay-date');
@@ -4247,16 +3749,15 @@
       syncSheetsStatusIndicators();
       renderQuickFillAccounts();
 
-      if (currentUser && currentUser.email) {
-        enterAuthenticatedWorkspace();
+      if (currentUser && currentUser.email && currentUser.token) {
+        fetch(`${getAppsScriptUrl()}?action=session&token=${encodeURIComponent(currentUser.token)}`).then(r=>r.json()).then(v=>{ if(v.ok){ currentUser={...currentUser,...v.user}; saveSession(currentUser); enterAuthenticatedWorkspace(); pullFullStateFromSheets(false); } else { currentUser=null; saveSession(null); document.getElementById('auth-gate')?.classList.remove('hidden'); } }).catch(()=>{ currentUser=null; saveSession(null); document.getElementById('auth-gate')?.classList.remove('hidden'); });
       } else {
         document.getElementById('auth-gate')?.classList.remove('hidden');
         document.getElementById('app-workspace')?.classList.add('hidden');
         switchAuthMode('login');
       }
 
-      // Shared Google Sheets database is authoritative across devices and Chrome profiles.
-      pullFullStateFromSheets(false);
+      // Shared Google Sheets database is authoritative; data is fetched only after server authentication.
       // Refresh other users' changes automatically; do not pull while a local write is queued.
       window.setInterval(() => {
         if (document.visibilityState === 'visible' && !isPullingRemote && syncPending === 0) pullFullStateFromSheets(false);
