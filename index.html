@@ -1518,9 +1518,9 @@
     const SESSION_KEY = 'leafs_liwo_session_v1';
     const SCRIPT_URL_KEY = 'leafs_gas_url';
     const LEGACY_SCRIPT_URL_KEY = 'leafs_liwo_apps_script_url_v1';
-    const DEFAULT_GAS_URL = 'https://script.google.com/macros/s/AKfycbyY5pUwAQWKFeuu7Glql4nZ2q9VpU9DQ5tRXM3Titn94BmzdzXyCG-Ly2iL524t108W/exec';
+    const DEFAULT_GAS_URL = 'https://script.google.com/macros/s/AKfycbwK8vfRoWytuM7Fa-U3fA_UuydqFWIEzkuVmc05DKjQaCXR-A-c9keNrPHkax4prc2O/exec';
     const DEFAULT_GAS_WEB_APP_URL = DEFAULT_GAS_URL;
-    const LEAFS_SHEET_URL = 'https://docs.google.com/spreadsheets/d/1OyWubhX8Y8pab9i7C19yxbrk8fTFIM4_sDFFJK6QwQQ/edit?usp=sharing';
+    const LEAFS_SHEET_URL = 'https://docs.google.com/spreadsheets/d/1PM7UTf-yc9Ig8YZYuoSfGK-9FACn88HM4OfviHWiHgM/edit';
 
     const AUTHORIZED_QUICK_FILL_TEAM = [
       {
@@ -2819,6 +2819,7 @@
           fileName: currentReceiptData.fileName,
           mimeType: currentReceiptData.mimeType,
           dataUrl: currentReceiptData.dataUrl,
+          transactionId: newTx.id,
           driveFolder: '/liwoaccountingreceipts',
           driveAccount: 'liwoec@gmail.com'
         });
@@ -4026,376 +4027,156 @@
       ta.remove();
     }
 
+    const leafsRemoteUploadsInFlight = new Set();
+    let leafsRemoteReady = false;
+
+    function postLeafsPayload(payload) {
+      const url = getAppsScriptUrl();
+      // text/plain is a simple request; no-cors is used because Apps Script web apps
+      // may redirect POST responses. The backend still receives and processes it.
+      return fetch(url, { method: 'POST', mode: 'no-cors', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(payload) });
+    }
+
+    async function uploadReceiptToDrive(rec) {
+      if (!rec || !rec.dataUrl || rec.driveUrl || leafsRemoteUploadsInFlight.has(rec.id)) return;
+      leafsRemoteUploadsInFlight.add(rec.id);
+      try {
+        await postLeafsPayload({
+          action: 'uploadReceipt', id: rec.id, projectCode: rec.projectCode || (appState.projects.find(p=>p.id===rec.projectId)||{}).code || '',
+          fileName: rec.fileName || 'receipt', mimeType: rec.mimeType || 'application/octet-stream', dataUrl: rec.dataUrl,
+          category: rec.category || 'Receipt', linkedRef: rec.transactionId || rec.linkedRef || '', transactionId: rec.transactionId || '',
+          uploadedBy: currentUser?.name || currentUser?.email || 'LEAFS System', actorEmail: currentUser?.email || '',
+          date: rec.date || getTodayISO(), title: rec.title || rec.fileName, amount: rec.amount || 0, description: rec.description || ''
+        });
+        // Keep the local dataUrl until a successful GET confirms the Drive URL.
+      } finally { leafsRemoteUploadsInFlight.delete(rec.id); }
+    }
+
     async function pushFullStateToSheets(showFeedbackToast = false) {
       const url = getAppsScriptUrl();
       if (!url) return;
       try {
+        // Upload only receipts that do not already have a Drive URL.
+        for (const rec of (appState.receipts || [])) {
+          if (rec.dataUrl && !rec.driveUrl) await uploadReceiptToDrive(rec);
+        }
         const payload = {
-          action: 'syncAll',
-          users: loadUsers(),
-          projects: appState.projects,
-          clients: appState.clients,
-          transactions: appState.transactions,
-          payments: appState.payments,
-          bills: appState.bills,
-          receipts: appState.receipts.map(r => ({
-            id: r.id,
-            projectId: r.projectId,
-            projectCode: r.projectCode,
-            projectName: r.projectName,
-            title: r.title,
-            category: r.category,
-            amount: r.amount,
-            date: formatDisplayDate(r.date),
-            fileName: r.fileName,
-            mimeType: r.mimeType,
-            driveFolder: r.driveFolder || '/liwoaccountingreceipts',
-            driveAccount: r.driveAccount || 'liwoec@gmail.com',
-            fileBase64: r.dataUrl || ''
+          action: 'syncAll', users: loadUsers(), projects: appState.projects, clients: appState.clients,
+          transactions: appState.transactions, payments: appState.payments, bills: appState.bills,
+          receipts: (appState.receipts || []).map(r => ({
+            id:r.id, projectId:r.projectId, projectCode:r.projectCode, title:r.title, category:r.category,
+            amount:r.amount, description:r.description, date:r.date, fileName:r.fileName, mimeType:r.mimeType,
+            linkedRef:r.transactionId || r.linkedRef || '', uploadedBy:currentUser?.name || currentUser?.email || 'LEAFS System',
+            driveFolder:r.driveFolder || '/liwoaccountingreceipts', driveUrl:r.driveUrl || ''
           })),
           auditLogs: appState.notifications
         };
-        await fetch(url, {
-          method: 'POST',
-          mode: 'no-cors',
-          headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-          body: JSON.stringify(payload)
-        });
-        if (showFeedbackToast) showToast('Synced LEAFS data to Google Sheets & Drive!');
+        await postLeafsPayload(payload);
+        if (showFeedbackToast) showToast('LEAFS save submitted to Google Sheets. Refreshing shared records…');
+        // Follow-up GET verifies the server-side result and fills Drive URLs.
+        setTimeout(() => pullFullStateFromSheets(false), 1800);
       } catch (err) {
-        if (showFeedbackToast) showToast('Could not reach Apps Script endpoint.', 'error');
+        if (showFeedbackToast) showToast('Could not reach Apps Script endpoint: ' + (err.message || err), 'error');
       }
     }
 
     async function upsertUserToGoogleSheets(userObj) {
-      const url = getAppsScriptUrl();
-      if (!url) return;
-      try {
-        await fetch(url, {
-          method: 'POST',
-          mode: 'no-cors',
-          headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-          body: JSON.stringify({
-            action: 'upsertUser',
-            user: userObj
-          })
-        });
-      } catch (_) {}
+      try { await postLeafsPayload({action:'upsertRow',sheet:'Users',row:userObj}); } catch (_) {}
+    }
+
+    function applyRemoteState(data) {
+      if (!data) return;
+      const localMediaById = new Map((appState.receipts||[]).filter(r=>r.dataUrl).map(r=>[String(r.id),r.dataUrl]));
+      const arrays = ['projects','clients','transactions','payments','bills','receipts','auditLogs'];
+      arrays.forEach(k => { if (Array.isArray(data[k])) {
+        const target = k === 'auditLogs' ? 'notifications' : k;
+        if (k === 'receipts') {
+          appState.receipts = data.receipts.map(r => ({...r, date:formatDisplayDate(r.date), dataUrl:localMediaById.get(String(r.id)) || '', driveUrl:r.driveUrl || r.DriveUrl || ''}));
+        } else if (k === 'auditLogs') appState.notifications = data.auditLogs;
+        else appState[target] = data[k];
+      }});
+      if (!appState.projects.some(p => p.id === appState.activeProjectId) && appState.projects.length) appState.activeProjectId = appState.projects[0].id;
+      safeSetStorage(STORAGE_KEY, JSON.stringify(appState));
+      if (currentUser) refreshAllViews();
     }
 
     async function pullFullStateFromSheets(showFeedbackToast = false) {
       const url = getAppsScriptUrl();
-      if (!url) return;
+      if (!url) return false;
       try {
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 5000);
-        const res = await fetch(`${url}?action=getAll&_t=${Date.now()}`, { signal: controller.signal });
+        const timeoutId = setTimeout(() => controller.abort(), 15000);
+        const res = await fetch(`${url}?action=getAll&_t=${Date.now()}`, {signal:controller.signal, cache:'no-store'});
         clearTimeout(timeoutId);
-        if (!res.ok) return;
-        const data = await res.json();
-        if (!data || data.ok === false) return;
-
-        if (Array.isArray(data.users) && data.users.length > 0) {
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        const response = await res.json();
+        if (!response || response.ok === false) throw new Error(response?.error || 'Invalid response');
+        const data = response.data || response;
+        // Merge authorized users without discarding local quick-fill accounts.
+        if (Array.isArray(data.users) && data.users.length) {
           const merged = loadUsers();
-          data.users.forEach(remoteU => {
-            if (!remoteU.email) return;
-            const em = String(remoteU.email).trim().toLowerCase();
-            const idx = merged.findIndex(u => u.email.toLowerCase() === em);
-            const rec = {
-              name: remoteU.name || em,
-              shortName: remoteU.shortName || (remoteU.name ? String(remoteU.name).split(' ')[0] : 'User'),
-              role: remoteU.role || 'Authorized Team',
-              email: em,
-              passwordHash: remoteU.passwordHash || remoteU.password || 'liwo2026',
-              isDefaultPassword: (remoteU.passwordHash || remoteU.password || 'liwo2026') === 'liwo2026',
-              updatedAt: remoteU.updatedAt || getFormattedTimestamp()
-            };
-            if (idx >= 0) merged[idx] = { ...merged[idx], ...rec };
-            else merged.push(rec);
+          data.users.forEach(u => {
+            const email = String(u.email || '').trim().toLowerCase(); if (!email) return;
+            const idx = merged.findIndex(x=>String(x.email).toLowerCase()===email);
+            const item = {...u,email,passwordHash:u.passwordHash||'liwo2026'};
+            if (idx >= 0) merged[idx] = {...merged[idx],...item}; else merged.push(item);
           });
-          saveUsers(merged);
-          renderQuickFillAccounts();
+          saveUsers(merged); usersList = merged; renderQuickFillAccounts();
         }
-
-        const localMediaById = new Map();
-        appState.receipts.forEach(r => {
-          if (r.dataUrl) localMediaById.set(r.id, r.dataUrl);
-        });
-
-        if (Array.isArray(data.projects) && data.projects.length > 0) appState.projects = data.projects;
-        if (Array.isArray(data.clients) && data.clients.length > 0) appState.clients = data.clients;
-        if (Array.isArray(data.transactions)) appState.transactions = data.transactions;
-        if (Array.isArray(data.payments) && data.payments.length > 0) appState.payments = data.payments;
-        if (Array.isArray(data.bills)) appState.bills = data.bills;
-        if (Array.isArray(data.receipts)) {
-          appState.receipts = data.receipts.map(r => ({
-            ...r,
-            date: formatDisplayDate(r.date),
-            dataUrl: r.dataUrl || localMediaById.get(r.id) || ''
-          }));
+        const remoteHasData = ['transactions','payments','receipts','projects','clients','bills'].some(k=>Array.isArray(data[k]) && data[k].length);
+        const localHasData = (appState.transactions||[]).length > 0 || (appState.payments||[]).length > 1 || (appState.receipts||[]).length > 0 || (appState.projects||[]).length > 1 || (appState.bills||[]).length > 0;
+        const localSnapshot = JSON.parse(JSON.stringify(appState));
+        if (remoteHasData) {
+          applyRemoteState(data);
+          // If this is the original browser profile, preserve any browser-only records
+          // that are not yet in Sheets. Existing remote rows win on matching IDs.
+          if (!leafsRemoteReady && localHasData) {
+            let addedLocalRows = false;
+            ['projects','clients','transactions','payments','bills','receipts'].forEach(k => {
+              const localRows = Array.isArray(localSnapshot[k]) ? localSnapshot[k] : [];
+              const remoteRows = Array.isArray(appState[k]) ? appState[k] : [];
+              const seen = new Set(remoteRows.map(x=>String(x.id || '')));
+              const missing = localRows.filter(x=>x && x.id && !seen.has(String(x.id)));
+              if (missing.length) { appState[k] = remoteRows.concat(missing); addedLocalRows = true; }
+            });
+            if (addedLocalRows) {
+              safeSetStorage(STORAGE_KEY, JSON.stringify(appState));
+              await pushFullStateToSheets(false);
+              showToast('Merged records from this browser into the shared LEAFS database.');
+            }
+          }
+        } else if (!leafsRemoteReady && localHasData) {
+          // First-profile migration: only run when the central database is empty.
+          await pushFullStateToSheets(false);
+          showToast('Existing browser records are being migrated to the shared LEAFS database.');
+        } else if (!remoteHasData && !localHasData) {
+          // Keep the starter template locally; never push an empty new-profile state over the database.
         }
-        if (Array.isArray(data.auditLogs) && data.auditLogs.length > 0) {
-          appState.notifications = data.auditLogs;
-        }
-
-        if (!appState.projects.some(p => p.id === appState.activeProjectId)) {
-          appState.activeProjectId = appState.projects[0].id;
-        }
-
-        safeSetStorage(STORAGE_KEY, JSON.stringify(appState));
-        if (currentUser) refreshAllViews();
-        if (showFeedbackToast) showToast('Pulled latest records from Google Sheets!');
-      } catch (_) {
-        if (showFeedbackToast) showToast('Using local LEAFS database (offline or CORS).');
+        leafsRemoteReady = true;
+        if (showFeedbackToast) showToast(remoteHasData ? 'Latest shared records loaded from Google Sheets.' : 'Google Sheets connected; no central records found yet.');
+        return true;
+      } catch (err) {
+        if (showFeedbackToast) showToast('Could not load shared records. Check the Apps Script deployment and URL.', 'error');
+        return false;
       }
     }
 
-    function syncFromGoogleSheets(showFeedback = true) {
-      pushFullStateToSheets(false);
-      pullFullStateFromSheets(showFeedback);
+    async function syncFromGoogleSheets(showFeedback = true) {
+      const ok = await pullFullStateFromSheets(showFeedback);
+      if (ok && showFeedback) showToast('Loaded the latest shared LEAFS records.');
     }
 
     function getAppsScriptTemplate() {
-      return `const SHEET_NAMES = [
-  'Users',
-  'Projects',
-  'Clients',
-  'Transactions',
-  'Payments',
-  'Bills',
-  'Receipts',
-  'AuditLogs'
-];
-
-const RECEIPT_DRIVE_FOLDER = 'liwoaccountingreceipts';
-const OFFICIAL_SENDER = 'liwoec@gmail.com';
-const REPORT_RECIPIENTS = [
-  'danaalthear@gmail.com',
-  'valezachristian0821@gmail.com',
-  'tristanvelasco4@gmail.com'
-];
-
-function doGet(e) {
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
-  ensureSheetsInitialized(ss);
-  const action = (e && e.parameter && e.parameter.action) || 'getAll';
-  if (action === 'getAll') {
-    return jsonResponse({
-      ok: true,
-      users: readRowsAsObjects(ss.getSheetByName('Users')),
-      projects: readRowsAsObjects(ss.getSheetByName('Projects')),
-      clients: readRowsAsObjects(ss.getSheetByName('Clients')),
-      transactions: readRowsAsObjects(ss.getSheetByName('Transactions')),
-      payments: readRowsAsObjects(ss.getSheetByName('Payments')),
-      bills: readRowsAsObjects(ss.getSheetByName('Bills')),
-      receipts: readRowsAsObjects(ss.getSheetByName('Receipts')),
-      auditLogs: readRowsAsObjects(ss.getSheetByName('AuditLogs'))
-    });
-  }
-  return jsonResponse({ ok: true, status: 'LEAFS Apps Script Ready' });
-}
-
-function doPost(e) {
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
-  ensureSheetsInitialized(ss);
-  const body = JSON.parse(e.postData.contents || '{}');
-
-  if (body.action === 'upsertUser' && body.user) {
-    upsertUserRow(ss.getSheetByName('Users'), body.user);
-    return jsonResponse({ ok: true, action: 'upsertUser' });
-  }
-
-  if (body.action === 'syncAll') {
-    if (Array.isArray(body.users)) {
-      body.users.forEach(u => upsertUserRow(ss.getSheetByName('Users'), u));
-    }
-    if (Array.isArray(body.projects)) replaceSheetRows(ss.getSheetByName('Projects'), body.projects);
-    if (Array.isArray(body.clients)) replaceSheetRows(ss.getSheetByName('Clients'), body.clients);
-    if (Array.isArray(body.transactions)) replaceSheetRows(ss.getSheetByName('Transactions'), body.transactions);
-    if (Array.isArray(body.payments)) replaceSheetRows(ss.getSheetByName('Payments'), body.payments);
-    if (Array.isArray(body.bills)) replaceSheetRows(ss.getSheetByName('Bills'), body.bills);
-    if (Array.isArray(body.receipts)) {
-      const processed = body.receipts.map(r => {
-        let driveUrl = r.driveUrl || '';
-        if (r.fileBase64 && !driveUrl) {
-          driveUrl = saveBase64ToDrive(r.fileBase64, r.fileName || 'receipt.jpg', r.mimeType || 'image/jpeg');
-        }
-        return {
-          id: r.id,
-          projectId: r.projectId,
-          projectCode: r.projectCode,
-          projectName: r.projectName,
-          title: r.title,
-          category: r.category,
-          amount: r.amount,
-          date: r.date,
-          fileName: r.fileName,
-          driveFolder: RECEIPT_DRIVE_FOLDER,
-          driveUrl: driveUrl
-        };
-      });
-      replaceSheetRows(ss.getSheetByName('Receipts'), processed);
-    }
-    if (Array.isArray(body.auditLogs)) replaceSheetRows(ss.getSheetByName('AuditLogs'), body.auditLogs);
-    return jsonResponse({ ok: true, action: 'syncAll' });
-  }
-
-  return jsonResponse({ ok: true });
-}
-
-function ensureSheetsInitialized(ss) {
-  SHEET_NAMES.forEach(name => {
-    if (!ss.getSheetByName(name)) {
-      ss.insertSheet(name);
-    }
-  });
-}
-
-function upsertUserRow(sheet, user) {
-  const email = String(user.email || '').trim().toLowerCase();
-  if (!email) return;
-  const headers = ['email', 'name', 'shortName', 'role', 'passwordHash', 'isDefaultPassword', 'updatedAt'];
-  ensureHeaders(sheet, headers);
-  const data = sheet.getDataRange().getValues();
-  const rowObj = {
-    email,
-    name: user.name || email,
-    shortName: user.shortName || '',
-    role: user.role || 'Authorized Team',
-    passwordHash: user.passwordHash || 'liwo2026',
-    isDefaultPassword: user.isDefaultPassword !== false,
-    updatedAt: user.updatedAt || new Date().toISOString()
-  };
-  for (let i = 1; i < data.length; i++) {
-    if (String(data[i][0] || '').trim().toLowerCase() === email) {
-      sheet.getRange(i + 1, 1, 1, headers.length).setValues([headers.map(h => rowObj[h])]);
-      return;
-    }
-  }
-  sheet.appendRow(headers.map(h => rowObj[h]));
-}
-
-function replaceSheetRows(sheet, items) {
-  sheet.clearContents();
-  if (!items || items.length === 0) return;
-  const keys = Array.from(items.reduce((set, obj) => {
-    Object.keys(obj || {}).forEach(k => set.add(k));
-    return set;
-  }, new Set()));
-  sheet.getRange(1, 1, 1, keys.length).setValues([keys]);
-  const rows = items.map(obj => keys.map(k => obj[k] !== undefined ? obj[k] : ''));
-  sheet.getRange(2, 1, rows.length, keys.length).setValues(rows);
-}
-
-function readRowsAsObjects(sheet) {
-  if (!sheet) return [];
-  const data = sheet.getDataRange().getValues();
-  if (data.length < 2) return [];
-  const headers = data[0].map(h => String(h).trim());
-  return data.slice(1).filter(r => r.some(c => c !== '')).map(r => {
-    const obj = {};
-    headers.forEach((h, idx) => { obj[h] = r[idx]; });
-    return obj;
-  });
-}
-
-function ensureHeaders(sheet, headers) {
-  if (sheet.getLastRow() === 0) {
-    sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
-  }
-}
-
-function saveBase64ToDrive(dataUrl, fileName, mimeType) {
-  const parts = String(dataUrl).split(',');
-  const base64 = parts.length > 1 ? parts[1] : parts[0];
-  const bytes = Utilities.base64Decode(base64);
-  const blob = Utilities.newBlob(bytes, mimeType, fileName);
-  const folders = DriveApp.getFoldersByName(RECEIPT_DRIVE_FOLDER);
-  const folder = folders.hasNext() ? folders.next() : DriveApp.createFolder(RECEIPT_DRIVE_FOLDER);
-  const file = folder.createFile(blob);
-  return file.getUrl();
-}
-
-function sendWeeklyAccountingReport() {
-  sendScheduledLeafsReport(
-    'YO, ENGR! 📎WEEKLY ACCOUNTING AND FINANCE REPORT HAS ARRIVED!',
-    'Weekly Accounting & Finance Report (Saturday 5:00 PM Schedule)'
-  );
-}
-
-function sendMonthlyAccountingReport() {
-  sendScheduledLeafsReport(
-    'YO, ENGR! DOING GREAT? 📎 MONTHLY ACCOUNTING AND FINANCE REPORT HAS ARRIVED!',
-    'Monthly Accounting & Finance Report (1st of Month Schedule)'
-  );
-}
-
-function sendScheduledLeafsReport(subject, label) {
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
-  const projects = readRowsAsObjects(ss.getSheetByName('Projects'));
-  const payments = readRowsAsObjects(ss.getSheetByName('Payments'));
-  const transactions = readRowsAsObjects(ss.getSheetByName('Transactions'));
-
-  const totalBudget = projects.reduce((s, p) => s + (Number(p.contractBudget) || 0), 0);
-  const totalCollected = payments.reduce((s, p) => s + (Number(p.amount) || 0), 0);
-  const totalSpent = transactions.reduce((s, t) => s + (Number(t.amount) || 0), 0);
-  const cashPosition = totalCollected - totalSpent;
-
-  const htmlBody = \`
-    <div style="font-family: Arial, sans-serif; color: #0f2942; line-height: 1.5;">
-      <h2>LEAFS — LIWO ENGINEERING ACCOUNTING AND FINANCE SYSTEM</h2>
-      <p><strong>Report Type:</strong> \${label}</p>
-      <ul>
-        <li><strong>Contract Budget:</strong> ₱\${totalBudget.toLocaleString('en-PH', {minimumFractionDigits: 2})}</li>
-        <li><strong>Total Client Payments:</strong> ₱\${totalCollected.toLocaleString('en-PH', {minimumFractionDigits: 2})}</li>
-        <li><strong>Total Expenses:</strong> ₱\${totalSpent.toLocaleString('en-PH', {minimumFractionDigits: 2})}</li>
-        <li><strong>Cash Position:</strong> ₱\${cashPosition.toLocaleString('en-PH', {minimumFractionDigits: 2})}</li>
-      </ul>
-      <hr/>
-      <p><strong>Prepared by:</strong> DANA ALTHEA R. RABO (Management Information Systems Analyst)</p>
-      <p><strong>Verified by:</strong> GODWIN TRISTAN P. VELASCO, PRC No. 0229444 (Civil Engineer)</p>
-      <p><strong>Approved by:</strong> CHRISTIAN A. VALEZA, PRC No. 0229445 (Civil Engineer)</p>
-      <p style="font-size: 12px; color: #64748b;">Generated from LEAFS (LIWO ENGINEERING ACCOUNTING AND FINANCE SYSTEM)</p>
-    </div>
-  \`;
-
-  const pdfBlob = ss.getAs('application/pdf').setName('LEAFS_Accounting_Report.pdf');
-  MailApp.sendEmail({
-    to: REPORT_RECIPIENTS.join(','),
-    replyTo: OFFICIAL_SENDER,
-    subject: subject,
-    htmlBody: htmlBody,
-    attachments: [pdfBlob]
-  });
-}
-
-function setupLeafsTriggers() {
-  ScriptApp.getProjectTriggers().forEach(t => ScriptApp.deleteTrigger(t));
-  ScriptApp.newTrigger('sendWeeklyAccountingReport')
-    .timeBased()
-    .onWeekDay(ScriptApp.Weekday.SATURDAY)
-    .atHour(17)
-    .create();
-  ScriptApp.newTrigger('sendMonthlyAccountingReport')
-    .timeBased()
-    .onMonthDay(1)
-    .atHour(8)
-    .create();
-}
-
-function jsonResponse(obj) {
-  return ContentService.createTextOutput(JSON.stringify(obj))
-    .setMimeType(ContentService.MimeType.JSON);
-}`;
+      return 'Use the supplied fixed file “LEAFS Google Apps Script with PDF Email Reports.txt” as Code.gs. The embedded legacy template is intentionally disabled because it used a different database format and did not reliably save uploaded receipts.';
     }
 
     // -----------------------------------------------------------------------
     // INITIALIZATION
     // -----------------------------------------------------------------------
     window.addEventListener('DOMContentLoaded', () => {
-      // Ensure DEFAULT_GAS_URL is permanently written and active on every load
-      safeSetStorage(SCRIPT_URL_KEY, DEFAULT_GAS_URL);
-      safeSetStorage(LEGACY_SCRIPT_URL_KEY, DEFAULT_GAS_URL);
+      // Keep the configured Apps Script URL; initialize it only when none exists.
+      if (!safeGetStorage(SCRIPT_URL_KEY)) safeSetStorage(SCRIPT_URL_KEY, DEFAULT_GAS_URL);
+      if (!safeGetStorage(LEGACY_SCRIPT_URL_KEY)) safeSetStorage(LEGACY_SCRIPT_URL_KEY, DEFAULT_GAS_URL);
 
       const txDateEl = document.getElementById('tx-date');
       const payDateEl = document.getElementById('pay-date');
