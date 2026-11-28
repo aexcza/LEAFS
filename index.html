@@ -3326,32 +3326,71 @@
     }
 
     function resolveReceiptMedia(rec) {
-      const directData = rec.dataUrl || rec.previewUrl || '';
-      const driveUrl = rec.driveUrl || rec.ReceiptDriveUrl || rec.DriveUrl || '';
+      const safeRec = rec || {};
+      let directData = safeRec.dataUrl || safeRec.previewUrl || '';
 
-      const driveIdMatch = driveUrl.match(/[-\w]{25,}/);
-      const fileId = driveIdMatch ? driveIdMatch[0] : '';
-      const isPdf = (rec.mimeType && rec.mimeType.includes('pdf')) ||
-        /\.pdf$/i.test(rec.fileName || '') ||
-        /\.pdf$/i.test(driveUrl || '');
-
-      let previewSrc = directData;
-      let embedSrc = '';
-      if (!previewSrc && fileId) {
-        if (isPdf) {
-          embedSrc = `https://drive.google.com/file/d/${fileId}/preview`;
-        } else {
-          previewSrc = `https://drive.google.com/thumbnail?id=${fileId}&sz=w1200`;
-        }
-      } else if (!previewSrc && driveUrl) {
-        if (isPdf) embedSrc = driveUrl;
-        else previewSrc = driveUrl;
+      // Recover local compressed image/PDF if synced from Google Sheets without base64
+      if (!directData && Array.isArray(appState.receipts)) {
+        const localMatch = appState.receipts.find(item =>
+          item && item.dataUrl && (
+            (safeRec.id && item.id === safeRec.id) ||
+            (safeRec.fileName && item.fileName && String(item.fileName).toLowerCase() === String(safeRec.fileName).toLowerCase())
+          )
+        );
+        if (localMatch) directData = localMatch.dataUrl;
       }
 
+      const driveUrl = String(
+        safeRec.driveUrl ||
+        safeRec.ReceiptDriveUrl ||
+        safeRec.DriveUrl ||
+        safeRec.url ||
+        ''
+      ).trim();
+
+      // Extract Google Drive file ID from standard /file/d/{id}/..., ?id={id}, or open?id={id} URLs
+      const fileIdMatch =
+        driveUrl.match(/\/d\/([-\w]{20,})/) ||
+        driveUrl.match(/[?&]id=([-\w]{20,})/) ||
+        driveUrl.match(/([-\w]{25,})/);
+      const fileId = safeRec.driveFileId || safeRec.fileId || (fileIdMatch ? fileIdMatch[1] : '');
+
+      const isPdf =
+        (safeRec.mimeType && String(safeRec.mimeType).toLowerCase().includes('pdf')) ||
+        (directData && /^data:application\/pdf/i.test(directData)) ||
+        /\.pdf(\?|#|$)/i.test(safeRec.fileName || '') ||
+        /\.pdf(\?|#|$)/i.test(driveUrl || '');
+
+      let imageSrc = '';
+      let pdfSrc = '';
+
+      if (directData) {
+        if (isPdf) pdfSrc = directData;
+        else imageSrc = directData;
+      } else if (fileId) {
+        if (isPdf) {
+          pdfSrc = `https://drive.google.com/file/d/${fileId}/preview`;
+        } else {
+          imageSrc = `https://drive.google.com/thumbnail?id=${fileId}&sz=w1200`;
+        }
+      } else if (driveUrl) {
+        if (isPdf) pdfSrc = driveUrl;
+        else imageSrc = driveUrl;
+      }
+
+      const openUrl = driveUrl || (fileId ? `https://drive.google.com/file/d/${fileId}/view` : LEAFS_SHEET_URL);
+      const folderLabel = cleanLabelText(safeRec.driveFolder, '/liwoaccountingreceipts');
+      const accountLabel = cleanLabelText(safeRec.driveAccount, 'liwoec@gmail.com');
+
       return {
-        previewSrc,
-        embedSrc,
-        driveUrl: driveUrl || LEAFS_SHEET_URL,
+        imageSrc,
+        pdfSrc,
+        previewSrc: imageSrc || '',
+        embedSrc: pdfSrc || '',
+        driveUrl: openUrl,
+        hasDriveUrl: Boolean(driveUrl || fileId),
+        folderLabel,
+        accountLabel,
         isPdf
       };
     }
@@ -3396,29 +3435,62 @@
         return;
       }
 
+      const isList = receiptViewMode === 'list';
+
       container.innerHTML = list.map(r => {
         const media = resolveReceiptMedia(r);
         const displayTitle = cleanReceiptTitle(r.title, r.description, r.category);
         const cleanDate = formatDisplayDate(r.date);
         const projCode = cleanLabelText(r.projectCode, 'RES-2026-002');
-        const thumbHtml = media.previewSrc
-          ? `<img src="${escapeHtml(media.previewSrc)}" alt="${escapeHtml(displayTitle)}" onerror="this.style.display='none'" class="w-full h-36 object-cover rounded-xl border border-slate-200 bg-white" />`
-          : `<div class="w-full h-36 rounded-xl bg-slate-100 border border-slate-200 flex flex-col items-center justify-center text-slate-500 text-xs font-bold gap-1">
-               <span>${media.isPdf ? '📄 PDF DOCUMENT' : '🧾 RECEIPT RECORD'}</span>
-               <span class="text-[10px] font-normal text-slate-400">${escapeHtml(r.fileName || 'Attached File')}</span>
-             </div>`;
+        const heightCls = isList ? 'h-24 sm:w-36 shrink-0' : 'w-full h-44';
+
+        let mediaHtml = '';
+        if (media.imageSrc) {
+          mediaHtml = `
+            <div onclick="openReceiptLightbox('${r.id}')" class="relative ${heightCls} rounded-xl overflow-hidden border border-slate-200 bg-slate-100 cursor-pointer group">
+              <img src="${escapeHtml(media.imageSrc)}" alt="${escapeHtml(displayTitle)}"
+                onerror="this.closest('.group').innerHTML='<div class=\\'w-full h-full flex flex-col items-center justify-center p-2 text-center text-[11px] font-bold text-slate-600 bg-slate-100\\'><span>🧾 ${escapeHtml(r.fileName || 'Attached Receipt')}</span><span class=\\'text-[10px] font-normal text-slate-400 mt-0.5\\'>My Drive: ${escapeHtml(media.folderLabel)}</span></div>'"
+                class="w-full h-full object-cover group-hover:scale-[1.02] transition-transform duration-200" />
+              <span class="absolute top-2 left-2 px-2 py-0.5 rounded-md bg-navy-900/80 text-white text-[10px] font-bold">IMAGE</span>
+            </div>
+          `;
+        } else if (media.pdfSrc) {
+          mediaHtml = `
+            <div class="relative ${heightCls} rounded-xl overflow-hidden border border-slate-200 bg-slate-100">
+              <iframe src="${escapeHtml(media.pdfSrc)}#toolbar=0&navpanes=0" title="${escapeHtml(displayTitle)}"
+                class="w-full h-full bg-white pointer-events-none"></iframe>
+              <button type="button" onclick="openReceiptLightbox('${r.id}')"
+                class="absolute inset-0 bg-navy-900/5 hover:bg-navy-900/15 flex items-end justify-between p-2 transition text-left">
+                <span class="px-2 py-0.5 rounded-md bg-rose-600 text-white text-[10px] font-extrabold">PDF PREVIEW</span>
+                <span class="px-2 py-0.5 rounded-md bg-white/95 text-navy-900 text-[10px] font-bold shadow-xs">Expand</span>
+              </button>
+            </div>
+          `;
+        } else {
+          mediaHtml = `
+            <div onclick="openReceiptLightbox('${r.id}')" class="${heightCls} rounded-xl bg-slate-50 border border-dashed border-slate-300 hover:border-blue-400 flex flex-col items-center justify-center p-3 text-center cursor-pointer transition">
+              <span class="text-xs font-extrabold text-navy-900">${media.isPdf ? '📄 PDF Receipt' : '🧾 Attached Receipt'}</span>
+              <span class="text-[11px] font-semibold text-slate-600 mt-0.5 line-clamp-1">${escapeHtml(r.fileName || 'Receipt File')}</span>
+              <span class="text-[10px] font-mono text-blue-700 mt-1">${escapeHtml(media.accountLabel)} ${escapeHtml(media.folderLabel)}</span>
+            </div>
+          `;
+        }
 
         return `
-          <div class="leafs-subcard p-3.5 flex flex-col justify-between gap-3">
-            <div class="space-y-2.5">
-              ${thumbHtml}
-              <div>
+          <div class="leafs-subcard p-3.5 ${isList ? 'flex flex-col sm:flex-row sm:items-center justify-between gap-4' : 'flex flex-col justify-between gap-3'}">
+            <div class="${isList ? 'flex flex-col sm:flex-row sm:items-center gap-3.5 flex-1 min-w-0' : 'space-y-2.5'}">
+              ${mediaHtml}
+              <div class="min-w-0 flex-1">
                 <p class="text-xs font-extrabold text-navy-900 leading-snug">${escapeHtml(displayTitle)}</p>
                 <p class="text-[11px] text-slate-500 mt-0.5">${escapeHtml(projCode)} • ${escapeHtml(cleanDate)} • <span class="font-bold text-navy-900">${formatPeso(r.amount)}</span></p>
+                <p class="text-[10px] font-mono text-slate-400 truncate mt-0.5">${escapeHtml(media.accountLabel)} • My Drive ${escapeHtml(media.folderLabel)}</p>
               </div>
             </div>
-            <div class="flex items-center justify-between pt-2 border-t border-slate-200/70 text-xs">
-              <button type="button" onclick="openReceiptLightbox('${r.id}')" class="text-blue-600 hover:underline font-bold">View</button>
+            <div class="flex items-center justify-between ${isList ? 'sm:flex-col sm:items-end gap-2 sm:border-t-0 pt-2 sm:pt-0' : 'pt-2 border-t border-slate-200/70'} text-xs shrink-0">
+              <div class="flex items-center gap-3">
+                <button type="button" onclick="openReceiptLightbox('${r.id}')" class="text-blue-600 hover:underline font-bold">View</button>
+                <a href="${escapeHtml(media.driveUrl)}" target="_blank" rel="noopener noreferrer" class="text-emerald-700 hover:underline font-bold">Drive</a>
+              </div>
               <div class="space-x-2">
                 <button type="button" onclick="openEditModal('receipt', '${r.id}')" class="text-slate-600 hover:text-navy-900 font-bold">Edit</button>
                 <button type="button" onclick="openDeleteModal('receipt', '${r.id}')" class="text-rose-600 hover:underline font-bold">Delete</button>
@@ -3443,41 +3515,50 @@
       const media = resolveReceiptMedia(rec);
 
       if (titleEl) titleEl.textContent = displayTitle;
-      if (metaEl) metaEl.textContent = `${cleanLabelText(rec.category, 'Receipt')} • ${cleanDate} • ${formatPeso(rec.amount)} • Drive: liwoec@gmail.com/liwoaccountingreceipts`;
+      if (metaEl) metaEl.textContent = `${cleanLabelText(rec.category, 'Receipt')} • ${cleanDate} • ${formatPeso(rec.amount)} • ${media.accountLabel} My Drive ${media.folderLabel}`;
 
-      if (media.previewSrc) {
-        bodyEl.innerHTML = `
-          <div class="w-full space-y-3 text-center">
-            <img src="${escapeHtml(media.previewSrc)}" alt="${escapeHtml(displayTitle)}" class="max-h-[55vh] mx-auto rounded-xl shadow-sm object-contain" />
-            <a href="${escapeHtml(media.driveUrl)}" target="_blank" rel="noopener noreferrer"
-              class="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-navy-900 text-white text-xs font-bold hover:bg-navy-800">
-              Open in Google Drive / Sheet &rarr;
-            </a>
+      let attachmentViewerHtml = '';
+      if (media.imageSrc) {
+        attachmentViewerHtml = `
+          <div class="w-full bg-white rounded-xl border border-slate-200 p-3 flex items-center justify-center">
+            <img src="${escapeHtml(media.imageSrc)}" alt="${escapeHtml(displayTitle)}"
+              onerror="this.replaceWith(Object.assign(document.createElement('p'), { className: 'text-xs font-semibold text-slate-600 p-4', textContent: 'Unable to load direct image preview here. Use Open in Google Drive below.' }))"
+              class="max-h-[52vh] w-auto max-w-full rounded-lg object-contain shadow-xs" />
           </div>
         `;
-      } else if (media.embedSrc) {
-        bodyEl.innerHTML = `
-          <div class="w-full space-y-3">
-            <iframe src="${escapeHtml(media.embedSrc)}" class="w-full h-96 rounded-xl border border-slate-200 bg-white"></iframe>
-            <div class="text-center">
-              <a href="${escapeHtml(media.driveUrl)}" target="_blank" rel="noopener noreferrer"
-                class="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-navy-900 text-white text-xs font-bold">
-                Open Full Document &rarr;
-              </a>
-            </div>
+      } else if (media.pdfSrc) {
+        attachmentViewerHtml = `
+          <div class="w-full bg-white rounded-xl border border-slate-200 overflow-hidden">
+            <iframe src="${escapeHtml(media.pdfSrc)}" title="${escapeHtml(displayTitle)}" class="w-full h-[52vh] border-0"></iframe>
           </div>
         `;
       } else {
-        bodyEl.innerHTML = `
-          <div class="p-6 text-center space-y-3">
-            <p class="text-xs font-semibold text-slate-600">No direct local or Drive image link is cached for this record yet.</p>
-            <a href="${escapeHtml(LEAFS_SHEET_URL)}" target="_blank" rel="noopener noreferrer"
-              class="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-navy-900 text-white text-xs font-bold">
-              Open LEAFS Google Sheet Database &rarr;
-            </a>
+        attachmentViewerHtml = `
+          <div class="w-full bg-white rounded-xl border border-dashed border-slate-300 p-5 text-center space-y-2">
+            <p class="text-xs font-extrabold text-navy-900">${escapeHtml(rec.fileName || 'Attached Receipt Document')}</p>
+            <p class="text-xs text-slate-600">Stored in <span class="font-mono font-bold text-navy-900">${escapeHtml(media.accountLabel)}</span> under My Drive <span class="font-mono font-bold text-blue-700">${escapeHtml(media.folderLabel)}</span>.</p>
+            <p class="text-[11px] text-slate-400">If this row came from Google Sheets without a cached image/URL, attach a file below or open Drive.</p>
           </div>
         `;
       }
+
+      bodyEl.innerHTML = `
+        <div class="w-full space-y-3">
+          ${attachmentViewerHtml}
+          <div class="bg-white rounded-xl border border-slate-200 p-3 flex flex-wrap items-center justify-between gap-2 text-xs">
+            <div class="space-y-0.5 min-w-0">
+              <p class="font-bold text-navy-900 truncate">${escapeHtml(displayTitle)}</p>
+              <p class="text-[11px] text-slate-500 font-mono truncate">${escapeHtml(rec.fileName || 'receipt-file')} • ${escapeHtml(media.accountLabel)} ${escapeHtml(media.folderLabel)}</p>
+            </div>
+            <div class="flex items-center gap-2 shrink-0">
+              <a href="${escapeHtml(media.driveUrl)}" target="_blank" rel="noopener noreferrer"
+                class="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-navy-900 text-white text-xs font-bold hover:bg-navy-800 transition">
+                Open in Google Drive &rarr;
+              </a>
+            </div>
+          </div>
+        </div>
+      `;
 
       modal.classList.remove('hidden');
     }
