@@ -3310,7 +3310,11 @@ function switchAuthMode(mode) {
       const modal = document.getElementById('universal-edit-modal');
       const titleEl = document.getElementById('edit-modal-title');
       const fieldsEl = document.getElementById('universal-edit-fields');
-      if (!modal || !fieldsEl) return;
+      if (!modal || !fieldsEl) {
+        console.error('LEAFS Edit modal is missing required elements.', { modal: !!modal, fields: !!fieldsEl });
+        showToast('The Edit window could not be opened. Please reload LEAFS.', 'error');
+        return;
+      }
 
       let html = '';
       if (entityType === 'transaction') {
@@ -3344,7 +3348,7 @@ function switchAuthMode(mode) {
           <input type="number" step="0.01" id="edit-pay-amount" value="${Number(item.amount) || 0}" class="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs font-bold" /></div>
         `;
       } else if (entityType === 'client') {
-  const item = appState.clients.find(c => c.id === id);
+  const item = appState.clients.find(c => String(c.id) === String(id));
   if (!item) return;
 
   const linkedProj = appState.projects.find(p =>
@@ -3465,6 +3469,11 @@ function switchAuthMode(mode) {
         `;
       }
 
+      if (!html.trim()) {
+        showToast('No editable fields were created for this record.', 'error');
+        console.error('LEAFS Edit form generated no fields for:', entityType, id);
+        return;
+      }
       fieldsEl.innerHTML = html;
       modal.classList.remove('hidden');
     }
@@ -3499,47 +3508,46 @@ function switchAuthMode(mode) {
           logAuditEvent('UPDATE', `Edited client payment ${item.reference} (${formatPeso(item.amount)}).`);
         }
       } else if (entityType === 'client') {
-  const item = appState.clients.find(c => c.id === id);
+        const item = appState.clients.find(c => String(c.id) === String(id));
+        if (!item) {
+          showToast('The selected client could not be found. Please refresh the Clients Directory and try again.', 'error');
+          return;
+        }
 
-  if (item) {
-    const linkedProj = appState.projects.find(p =>
-      p.id === item.projectId ||
-      (item.projectCode && p.code === item.projectCode)
-    );
+        const oldProjectCode = item.projectCode;
+        const newName = document.getElementById('edit-cli-name')?.value.trim().toUpperCase();
+        const newProjectName = document.getElementById('edit-cli-project-name')?.value.trim();
+        const newProjectCode = document.getElementById('edit-cli-project-code')?.value.trim().toUpperCase();
+        if (!newName || !newProjectName || !newProjectCode) {
+          showToast('Client name, project title, and project code are required.', 'error');
+          return;
+        }
 
-    const newName = document.getElementById('edit-cli-name').value.trim().toUpperCase();
-    const newProjectName = document.getElementById('edit-cli-project-name').value.trim();
-    const newProjectCode = document.getElementById('edit-cli-project-code').value.trim().toUpperCase();
+        item.name = newName;
+        item.contactPerson = document.getElementById('edit-cli-contact')?.value.trim() || '';
+        item.phone = document.getElementById('edit-cli-phone')?.value.trim() || '';
+        item.email = document.getElementById('edit-cli-email')?.value.trim() || '';
+        item.address = document.getElementById('edit-cli-address')?.value.trim() || '';
+        item.status = document.getElementById('edit-cli-status')?.value || item.status || 'Active';
+        item.projectName = newProjectName;
+        item.projectCode = newProjectCode;
+        item.contractBudget = Math.max(0, parseFloat(document.getElementById('edit-cli-budget')?.value) || 0);
+        item.notes = document.getElementById('edit-cli-notes')?.value.trim() || '';
 
-    if (!newName || !newProjectName || !newProjectCode) {
-      showToast('Client name, project title, and project code are required.', 'error');
-      return;
-    }
-
-    item.name = newName;
-    item.contactPerson = document.getElementById('edit-cli-contact').value.trim().toUpperCase();
-    item.phone = document.getElementById('edit-cli-phone').value.trim();
-    item.email = document.getElementById('edit-cli-email').value.trim();
-    item.address = document.getElementById('edit-cli-address').value.trim();
-    item.status = document.getElementById('edit-cli-status').value;
-    item.projectName = newProjectName;
-    item.projectCode = newProjectCode;
-    item.contractBudget = parseFloat(document.getElementById('edit-cli-budget').value) || 0;
-    item.notes = document.getElementById('edit-cli-notes').value.trim();
-
-    if (linkedProj) {
-      linkedProj.clientName = item.name;
-      linkedProj.name = item.projectName;
-      linkedProj.code = item.projectCode;
-      linkedProj.location = item.address;
-      linkedProj.contractBudget = item.contractBudget;
-      linkedProj.status = item.status;
-    }
-logAuditEvent(
-  'UPDATE',
-  `Updated client ${item.name}, contact details, project ${item.projectName}, and contract budget (${formatPeso(item.contractBudget)}).`
-);
-  } 
+        const linkedProj = appState.projects.find(p =>
+          String(p.id) === String(item.projectId) ||
+          (p.code && (String(p.code).toUpperCase() === String(oldProjectCode || '').toUpperCase() || String(p.code).toUpperCase() === newProjectCode))
+        );
+        if (linkedProj) {
+          linkedProj.clientName = item.name;
+          linkedProj.name = item.projectName;
+          linkedProj.code = item.projectCode;
+          linkedProj.location = item.address;
+          linkedProj.contractBudget = item.contractBudget;
+          linkedProj.status = item.status;
+          item.projectId = linkedProj.id;
+        }
+        logAuditEvent('UPDATE', `Updated client "${item.name}", contact details, project "${item.projectName}" (${item.projectCode}), and contract budget (${formatPeso(item.contractBudget)}).`);
       } else if (entityType === 'bill') {
         const item = appState.bills.find(b => b.id === id);
         if (item) {
