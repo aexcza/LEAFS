@@ -140,8 +140,8 @@
         <!-- Inline Auth Status / Error Message Box -->
         <div id="auth-feedback-box" class="hidden px-3.5 py-2.5 rounded-xl text-xs font-semibold border"></div>
 
-        <!-- Quick Fill Feedback Banner -->
-        <div id="quick-select-banner" class="hidden px-3 py-2 rounded-xl bg-blue-50 border border-blue-200 text-[11px] font-semibold text-blue-900"></div>
+        <!-- Account Selection Banner (Reference Style) -->
+        <div id="account-selection-banner" class="hidden px-3.5 py-2.5 rounded-xl bg-slate-100/90 border border-slate-200 text-xs font-medium text-slate-700 leading-relaxed"></div>
 
         <!-- SIGN IN FORM -->
         <form id="login-form" onsubmit="handleLogin(event)" class="space-y-4">
@@ -204,7 +204,7 @@
           </div>
 
           <button type="submit" class="w-full py-3 px-4 rounded-xl bg-navy-900 hover:bg-navy-800 text-white font-bold text-sm shadow-sm transition">
-            Create Account &amp; Enter LEAFS &rarr;
+            Create Account &amp; Enter Workspace &rarr;
           </button>
         </form>
 
@@ -212,7 +212,7 @@
         <div id="quick-fill-section" class="pt-3 border-t border-slate-100 space-y-2.5" style="display: block !important; visibility: visible !important; opacity: 1 !important;">
           <div class="flex items-center justify-between gap-2">
             <span class="text-[10px] font-extrabold uppercase tracking-wider text-slate-400">QUICK FILL ACCOUNT (AUTHORIZED TEAM)</span>
-            <span class="text-[10px] font-semibold text-blue-600">Click card to fill or Sign In</span>
+            <span class="text-[10px] font-semibold text-blue-600">Click to fill email</span>
           </div>
           <div id="quick-fill-grid" style="display: grid !important; visibility: visible !important; opacity: 1 !important;"></div>
           <div id="quick-fill-accounts" class="hidden" aria-hidden="true"></div>
@@ -221,9 +221,9 @@
 
         <!-- CONNECT GOOGLE SHEETS BAR ON LOGIN PORTAL -->
         <div class="pt-3 border-t border-slate-100 flex items-center justify-between gap-2">
-          <div class="flex items-center gap-2 text-[11px] text-slate-500 min-w-0">
+          <div class="flex items-center gap-2 text-[11px] text-slate-600 font-medium min-w-0">
             <span id="login-sheets-dot" class="w-2 h-2 rounded-full bg-emerald-500 shrink-0"></span>
-            <span id="login-sheets-status-text" class="truncate">LEAFS Google Sheets Connected</span>
+            <span id="login-sheets-status-text" class="truncate">Google Sheets Connected (Permanent)</span>
           </div>
           <button type="button" onclick="openSheetsModal()"
             class="px-2.5 py-1.5 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 text-[11px] font-bold shrink-0 transition">
@@ -1697,6 +1697,7 @@
 
     let usersList = loadUsers();
     let currentUser = loadSession();
+    let selectedQuickFillEmail = '';
     let appState = createInitialState();
     let currentTab = 'dashboard';
     let clientScopeOnlySelected = false;
@@ -1982,23 +1983,21 @@
 
       const accounts = getTeamAccountsForQuickFill();
       grid.innerHTML = accounts.map(acc => {
-        const initials = getInitials(acc.name);
-        const passLabel = acc.isDefaultPassword === false ? 'Custom password set' : 'Default: liwo2026';
+        const isSelected = selectedQuickFillEmail && selectedQuickFillEmail.toLowerCase() === acc.email.toLowerCase();
+        const cardBorder = isSelected
+          ? 'border-blue-500 ring-1 ring-blue-500 bg-white'
+          : 'border-slate-200 bg-slate-50/80 hover:bg-blue-50/50 hover:border-blue-300';
+        const dotColor = isSelected ? 'bg-emerald-500' : 'bg-blue-500';
         return `
           <button type="button"
             onclick="handleQuickFillCardClick('${escapeHtml(acc.email)}')"
-            class="quick-fill-card w-full text-left flex-col justify-between gap-1.5 cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-400">
-            <div class="flex items-start gap-2.5 w-full min-w-0">
-              <span class="w-8 h-8 rounded-lg bg-navy-900 text-white text-[11px] font-extrabold flex items-center justify-center shrink-0 mt-0.5">${escapeHtml(initials)}</span>
+            class="quick-fill-card w-full text-left flex-col justify-between gap-1 cursor-pointer focus:outline-none ${cardBorder}">
+            <div class="flex items-start justify-between gap-2 w-full min-w-0">
               <div class="min-w-0 flex-1">
                 <p class="text-xs font-extrabold text-navy-900 leading-tight truncate">${escapeHtml(acc.name)}</p>
-                <p class="text-[10px] font-medium text-slate-600 leading-snug line-clamp-2 mt-0.5">${escapeHtml(acc.role)}</p>
-                <p class="text-[10px] font-mono text-blue-700 truncate mt-0.5">${escapeHtml(acc.email)}</p>
+                <p class="text-[11px] font-mono text-slate-500 truncate mt-0.5">${escapeHtml(acc.email)}</p>
               </div>
-            </div>
-            <div class="w-full pt-1.5 mt-0.5 border-t border-slate-200/80 flex items-center justify-between text-[10px]">
-              <span class="text-slate-500 font-medium">${escapeHtml(passLabel)}</span>
-              <span class="font-extrabold text-navy-900">Sign In &rarr;</span>
+              <span class="w-2 h-2 rounded-full ${dotColor} shrink-0 mt-1"></span>
             </div>
           </button>
         `;
@@ -2015,35 +2014,33 @@
       const match = accounts.find(u => u.email.toLowerCase() === targetEmail) ||
         AUTHORIZED_QUICK_FILL_TEAM.find(u => u.email.toLowerCase() === targetEmail);
 
-      const passwordToFill = (match && match.passwordHash) ? match.passwordHash : 'liwo2026';
+      selectedQuickFillEmail = targetEmail;
+      showAuthFeedback('');
 
       const emailInput = document.getElementById('login-email');
       const passInput = document.getElementById('login-password');
-      const banner = document.getElementById('quick-select-banner');
+      const banner = document.getElementById('account-selection-banner');
       const hint = document.getElementById('login-password-status-hint');
 
       if (emailInput) emailInput.value = targetEmail;
-      if (passInput) passInput.value = passwordToFill;
+      if (passInput) {
+        passInput.value = '';
+        passInput.focus();
+      }
+
+      const hasCustomPass = match && match.isDefaultPassword === false && match.passwordHash && match.passwordHash !== 'liwo2026';
       if (hint) {
-        hint.innerHTML = (match && match.isDefaultPassword === false)
+        hint.innerHTML = hasCustomPass
           ? `<span class="text-emerald-700 font-bold">Custom password active</span>`
           : `Default: <code class="font-mono text-navy-900">liwo2026</code>`;
       }
+
       if (banner && match) {
         banner.classList.remove('hidden');
-        banner.textContent = `Signing in as ${match.name} (${match.email})...`;
+        banner.textContent = `Account selected: ${match.name}. Enter your custom password to sign in.`;
       }
 
-      const activeUser = match || {
-        name: targetEmail.split('@')[0],
-        shortName: targetEmail.split('@')[0],
-        role: 'Authorized Team Member',
-        email: targetEmail,
-        passwordHash: passwordToFill,
-        isDefaultPassword: passwordToFill === 'liwo2026'
-      };
-
-      completeUserAuthentication(activeUser, 'Quick Fill Card');
+      renderQuickFillAccounts();
     }
 
     function quickFillAccount(email) {
@@ -2051,7 +2048,15 @@
     }
 
     function quickSignInAccount(email) {
-      handleQuickFillCardClick(email);
+      const targetEmail = String(email || '').trim().toLowerCase();
+      handleQuickFillCardClick(targetEmail);
+      const accounts = getTeamAccountsForQuickFill();
+      const match = accounts.find(u => u.email.toLowerCase() === targetEmail);
+      const passInput = document.getElementById('login-password');
+      if (passInput && match && (match.isDefaultPassword !== false || match.passwordHash === 'liwo2026')) {
+        passInput.value = match.passwordHash || 'liwo2026';
+      }
+      handleLogin();
     }
 
     function switchAuthMode(mode) {
@@ -2113,10 +2118,11 @@
       usersList = loadUsers();
 
       const emailVal = (document.getElementById('login-email')?.value || '').trim().toLowerCase();
-      const passVal = (document.getElementById('login-password')?.value || '').trim();
+      const passInput = document.getElementById('login-password');
+      let passVal = (passInput?.value || '').trim();
 
-      if (!emailVal || !passVal) {
-        showAuthFeedback('Please enter both your email address and password.', 'error');
+      if (!emailVal) {
+        showAuthFeedback('Please enter or select an authorized email address.', 'error');
         return;
       }
 
@@ -2127,25 +2133,37 @@
           user = { ...teamMatch };
           usersList.push(user);
           saveUsers(usersList);
-        } else {
-          // Allow direct sign-in for any valid email with default password 'liwo2026'
-          user = {
-            name: emailVal.split('@')[0],
-            shortName: emailVal.split('@')[0],
-            role: 'Authorized Team Member',
-            email: emailVal,
-            passwordHash: passVal,
-            isDefaultPassword: passVal === 'liwo2026',
-            updatedAt: getFormattedTimestamp()
-          };
-          usersList.push(user);
-          saveUsers(usersList);
         }
+      }
+
+      // If user clicked a default account card without typing password yet, allow default liwo2026
+      if (!passVal && user && (user.isDefaultPassword !== false || (user.passwordHash || 'liwo2026') === 'liwo2026')) {
+        passVal = 'liwo2026';
+        if (passInput) passInput.value = passVal;
+      }
+
+      if (!passVal) {
+        showAuthFeedback('Please enter your password to sign in.', 'error');
+        return;
+      }
+
+      if (!user) {
+        user = {
+          name: emailVal.split('@')[0],
+          shortName: emailVal.split('@')[0],
+          role: 'Authorized Team Member',
+          email: emailVal,
+          passwordHash: passVal,
+          isDefaultPassword: passVal === 'liwo2026',
+          updatedAt: getFormattedTimestamp()
+        };
+        usersList.push(user);
+        saveUsers(usersList);
       }
 
       const storedPass = user.passwordHash || 'liwo2026';
       if (passVal !== storedPass && passVal !== 'liwo2026') {
-        showAuthFeedback('Incorrect password. Default team password is "liwo2026" unless changed.', 'error');
+        showAuthFeedback('Incorrect password for this account. Try again or enter the valid password.', 'error');
         return;
       }
 
@@ -3885,7 +3903,7 @@
       const loginText = document.getElementById('login-sheets-status-text');
       if (dot) dot.className = connected ? 'w-2 h-2 rounded-full bg-emerald-500' : 'w-2 h-2 rounded-full bg-amber-400';
       if (loginDot) loginDot.className = connected ? 'w-2 h-2 rounded-full bg-emerald-500 shrink-0' : 'w-2 h-2 rounded-full bg-amber-400 shrink-0';
-      if (loginText) loginText.textContent = connected ? 'LEAFS Google Sheets Connected' : 'Local Mode (Connect Sheets URL)';
+      if (loginText) loginText.textContent = connected ? 'Google Sheets Connected (Permanent)' : 'Local Mode (Connect Sheets URL)';
     }
 
     function openSheetsModal() {
