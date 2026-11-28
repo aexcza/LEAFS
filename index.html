@@ -140,7 +140,7 @@
         <!-- Inline Auth Status / Error Message Box -->
         <div id="auth-feedback-box" class="hidden px-3.5 py-2.5 rounded-xl text-xs font-semibold border"></div>
 
-        <!-- Account Selection Banner (Reference Style) -->
+        <!-- Account Selection Banner -->
         <div id="account-selection-banner" class="hidden px-3.5 py-2.5 rounded-xl bg-slate-100/90 border border-slate-200 text-xs font-medium text-slate-700 leading-relaxed"></div>
 
         <!-- SIGN IN FORM -->
@@ -1475,7 +1475,7 @@
       </div>
 
       <div class="space-y-2">
-        <label class="block text-[11px] font-bold uppercase text-slate-500">Google Apps Script Web App URL</label>
+        <label class="block text-[11px] font-bold uppercase text-slate-500">Google Apps Script Web App URL (Permanently Synced)</label>
         <div class="flex flex-col sm:flex-row gap-2">
           <input type="url" id="apps-script-url-input" placeholder="https://script.google.com/macros/s/.../exec"
             class="flex-1 px-3.5 py-2 rounded-xl border border-slate-200 text-xs font-mono" />
@@ -1641,10 +1641,16 @@
       } catch (_) {}
     }
 
+    // Permanently bound to the hardcoded DEFAULT_GAS_URL so it works seamlessly on any device/session
     function getAppsScriptUrl() {
       try {
         const saved = (safeGetStorage(SCRIPT_URL_KEY) || safeGetStorage(LEGACY_SCRIPT_URL_KEY) || '').trim();
-        return saved || DEFAULT_GAS_URL;
+        if (saved && saved.includes('script.google.com/macros/s/')) {
+          return saved;
+        }
+        safeSetStorage(SCRIPT_URL_KEY, DEFAULT_GAS_URL);
+        safeSetStorage(LEGACY_SCRIPT_URL_KEY, DEFAULT_GAS_URL);
+        return DEFAULT_GAS_URL;
       } catch (_) {
         return DEFAULT_GAS_URL;
       }
@@ -2136,7 +2142,6 @@
         }
       }
 
-      // If user clicked a default account card without typing password yet, allow default liwo2026
       if (!passVal && user && (user.isDefaultPassword !== false || (user.passwordHash || 'liwo2026') === 'liwo2026')) {
         passVal = 'liwo2026';
         if (passInput) passInput.value = passVal;
@@ -3329,7 +3334,6 @@
       const safeRec = rec || {};
       let directData = safeRec.dataUrl || safeRec.previewUrl || '';
 
-      // Recover local compressed image/PDF if synced from Google Sheets without base64
       if (!directData && Array.isArray(appState.receipts)) {
         const localMatch = appState.receipts.find(item =>
           item && item.dataUrl && (
@@ -3348,7 +3352,6 @@
         ''
       ).trim();
 
-      // Extract Google Drive file ID from standard /file/d/{id}/..., ?id={id}, or open?id={id} URLs
       const fileIdMatch =
         driveUrl.match(/\/d\/([-\w]{20,})/) ||
         driveUrl.match(/[?&]id=([-\w]{20,})/) ||
@@ -4286,12 +4289,12 @@ function replaceSheetRows(sheet, items) {
 
 function readRowsAsObjects(sheet) {
   if (!sheet) return [];
-  const values = sheet.getDataRange().getValues();
-  if (!values || values.length < 2) return [];
-  const headers = values[0].map(h => String(h).trim());
-  return values.slice(1).filter(r => r.some(c => c !== '')).map(row => {
+  const data = sheet.getDataRange().getValues();
+  if (data.length < 2) return [];
+  const headers = data[0].map(h => String(h).trim());
+  return data.slice(1).filter(r => r.some(c => c !== '')).map(r => {
     const obj = {};
-    headers.forEach((h, idx) => { obj[h] = row[idx]; });
+    headers.forEach((h, idx) => { obj[h] = r[idx]; });
     return obj;
   });
 }
@@ -4305,57 +4308,79 @@ function ensureHeaders(sheet, headers) {
 function saveBase64ToDrive(dataUrl, fileName, mimeType) {
   const parts = String(dataUrl).split(',');
   const base64 = parts.length > 1 ? parts[1] : parts[0];
-  const decoded = Utilities.base64Decode(base64);
-  const blob = Utilities.newBlob(decoded, mimeType, fileName);
+  const bytes = Utilities.base64Decode(base64);
+  const blob = Utilities.newBlob(bytes, mimeType, fileName);
   const folders = DriveApp.getFoldersByName(RECEIPT_DRIVE_FOLDER);
   const folder = folders.hasNext() ? folders.next() : DriveApp.createFolder(RECEIPT_DRIVE_FOLDER);
   const file = folder.createFile(blob);
-  file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
   return file.getUrl();
 }
 
-function setupEmailTriggers() {
+function sendWeeklyAccountingReport() {
+  sendScheduledLeafsReport(
+    'YO, ENGR! 📎WEEKLY ACCOUNTING AND FINANCE REPORT HAS ARRIVED!',
+    'Weekly Accounting & Finance Report (Saturday 5:00 PM Schedule)'
+  );
+}
+
+function sendMonthlyAccountingReport() {
+  sendScheduledLeafsReport(
+    'YO, ENGR! DOING GREAT? 📎 MONTHLY ACCOUNTING AND FINANCE REPORT HAS ARRIVED!',
+    'Monthly Accounting & Finance Report (1st of Month Schedule)'
+  );
+}
+
+function sendScheduledLeafsReport(subject, label) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const projects = readRowsAsObjects(ss.getSheetByName('Projects'));
+  const payments = readRowsAsObjects(ss.getSheetByName('Payments'));
+  const transactions = readRowsAsObjects(ss.getSheetByName('Transactions'));
+
+  const totalBudget = projects.reduce((s, p) => s + (Number(p.contractBudget) || 0), 0);
+  const totalCollected = payments.reduce((s, p) => s + (Number(p.amount) || 0), 0);
+  const totalSpent = transactions.reduce((s, t) => s + (Number(t.amount) || 0), 0);
+  const cashPosition = totalCollected - totalSpent;
+
+  const htmlBody = \`
+    <div style="font-family: Arial, sans-serif; color: #0f2942; line-height: 1.5;">
+      <h2>LEAFS — LIWO ENGINEERING ACCOUNTING AND FINANCE SYSTEM</h2>
+      <p><strong>Report Type:</strong> \${label}</p>
+      <ul>
+        <li><strong>Contract Budget:</strong> ₱\${totalBudget.toLocaleString('en-PH', {minimumFractionDigits: 2})}</li>
+        <li><strong>Total Client Payments:</strong> ₱\${totalCollected.toLocaleString('en-PH', {minimumFractionDigits: 2})}</li>
+        <li><strong>Total Expenses:</strong> ₱\${totalSpent.toLocaleString('en-PH', {minimumFractionDigits: 2})}</li>
+        <li><strong>Cash Position:</strong> ₱\${cashPosition.toLocaleString('en-PH', {minimumFractionDigits: 2})}</li>
+      </ul>
+      <hr/>
+      <p><strong>Prepared by:</strong> DANA ALTHEA R. RABO (Management Information Systems Analyst)</p>
+      <p><strong>Verified by:</strong> GODWIN TRISTAN P. VELASCO, PRC No. 0229444 (Civil Engineer)</p>
+      <p><strong>Approved by:</strong> CHRISTIAN A. VALEZA, PRC No. 0229445 (Civil Engineer)</p>
+      <p style="font-size: 12px; color: #64748b;">Generated from LEAFS (LIWO ENGINEERING ACCOUNTING AND FINANCE SYSTEM)</p>
+    </div>
+  \`;
+
+  const pdfBlob = ss.getAs('application/pdf').setName('LEAFS_Accounting_Report.pdf');
+  MailApp.sendEmail({
+    to: REPORT_RECIPIENTS.join(','),
+    replyTo: OFFICIAL_SENDER,
+    subject: subject,
+    htmlBody: htmlBody,
+    attachments: [pdfBlob]
+  });
+}
+
+function setupLeafsTriggers() {
   ScriptApp.getProjectTriggers().forEach(t => ScriptApp.deleteTrigger(t));
-  ScriptApp.newTrigger('sendWeeklyReportEmail')
+  ScriptApp.newTrigger('sendWeeklyAccountingReport')
     .timeBased()
-    .onWeekDay(ScriptApp.WeekDay.SATURDAY)
+    .onWeekDay(ScriptApp.Weekday.SATURDAY)
     .atHour(17)
     .create();
-  ScriptApp.newTrigger('sendMonthlyReportEmail')
+  ScriptApp.newTrigger('sendMonthlyAccountingReport')
     .timeBased()
     .onMonthDay(1)
     .atHour(8)
     .create();
-}
-
-function sendWeeklyReportEmail() {
-  MailApp.sendEmail({
-    to: REPORT_RECIPIENTS.join(','),
-    subject: 'YO, ENGR! 📎WEEKLY ACCOUNTING AND FINANCE REPORT HAS ARRIVED!',
-    htmlBody: buildReportEmailHtml('WEEKLY ACCOUNTING & FINANCE REPORT')
-  });
-}
-
-function sendMonthlyReportEmail() {
-  MailApp.sendEmail({
-    to: REPORT_RECIPIENTS.join(','),
-    subject: 'YO, ENGR! DOING GREAT? 📎 MONTHLY ACCOUNTING AND FINANCE REPORT HAS ARRIVED!',
-    htmlBody: buildReportEmailHtml('MONTHLY ACCOUNTING & FINANCE REPORT')
-  });
-}
-
-function buildReportEmailHtml(reportLabel) {
-  return \`
-    <div style="font-family:Arial,sans-serif;color:#0f2942;line-height:1.5;">
-      <h2>LEAFS — LIWO ENGINEERING ACCOUNTING AND FINANCE SYSTEM</h2>
-      <p><strong>\${reportLabel}</strong></p>
-      <p><strong>PREPARED BY:</strong> DANA ALTHEA R. RABO (Management Information Systems Analyst)</p>
-      <p><strong>VERIFIED BY:</strong> GODWIN TRISTAN P. VELASCO (PRC No. 0229444, Civil Engineer)</p>
-      <p><strong>APPROVED BY:</strong> CHRISTIAN A. VALEZA (PRC No. 0229445, Civil Engineer)</p>
-      <hr/>
-      <p style="font-size:12px;color:#64748b;">Generated from LEAFS (LIWO ENGINEERING ACCOUNTING AND FINANCE SYSTEM)</p>
-    </div>
-  \`;
 }
 
 function jsonResponse(obj) {
@@ -4365,63 +4390,45 @@ function jsonResponse(obj) {
     }
 
     // -----------------------------------------------------------------------
-    // APPLICATION INITIALIZATION
+    // INITIALIZATION
     // -----------------------------------------------------------------------
-    function initApp() {
-      try {
-        safeSetStorage(SCRIPT_URL_KEY, getAppsScriptUrl());
-        const urlInput = document.getElementById('apps-script-url-input');
-        if (urlInput) urlInput.value = getAppsScriptUrl();
+    window.addEventListener('DOMContentLoaded', () => {
+      // Ensure DEFAULT_GAS_URL is permanently written and active on every load
+      safeSetStorage(SCRIPT_URL_KEY, DEFAULT_GAS_URL);
+      safeSetStorage(LEGACY_SCRIPT_URL_KEY, DEFAULT_GAS_URL);
 
-        const codeBlock = document.getElementById('apps-script-code-block');
-        if (codeBlock) codeBlock.textContent = getAppsScriptTemplate();
+      const txDateEl = document.getElementById('tx-date');
+      const payDateEl = document.getElementById('pay-date');
+      const billDateEl = document.getElementById('bill-due-date');
+      if (txDateEl) txDateEl.value = getTodayISO();
+      if (payDateEl) payDateEl.value = getTodayISO();
+      if (billDateEl) billDateEl.value = getTodayISO();
 
-        const txDate = document.getElementById('tx-date');
-        const payDate = document.getElementById('pay-date');
-        const billDue = document.getElementById('bill-due-date');
-        if (txDate && !txDate.value) txDate.value = getTodayISO();
-        if (payDate && !payDate.value) payDate.value = getTodayISO();
-        if (billDue && !billDue.value) billDue.value = getTodayISO();
+      const sheetsInput = document.getElementById('apps-script-url-input');
+      if (sheetsInput) sheetsInput.value = getAppsScriptUrl();
 
-        autoGenerateCommentary();
-        renderQuickFillAccounts();
-        syncSheetsStatusIndicators();
+      syncSheetsStatusIndicators();
+      renderQuickFillAccounts();
 
-        if (currentUser && currentUser.email) {
-          enterAuthenticatedWorkspace();
-        } else {
-          document.getElementById('auth-gate')?.classList.remove('hidden');
-          document.getElementById('app-workspace')?.classList.add('hidden');
-          renderQuickFillAccounts();
-        }
-
-        pullFullStateFromSheets(false);
-      } catch (err) {
-        console.error('LEAFS init error:', err);
-        renderQuickFillAccounts();
+      if (currentUser && currentUser.email) {
+        enterAuthenticatedWorkspace();
+      } else {
         document.getElementById('auth-gate')?.classList.remove('hidden');
+        document.getElementById('app-workspace')?.classList.add('hidden');
+        switchAuthMode('login');
       }
-    }
 
-    // Render Quick Fill accounts immediately on script evaluation and DOM ready
-    renderQuickFillAccounts();
-
-    document.addEventListener('click', e => {
-      const dropdown = document.getElementById('notif-dropdown');
-      const bellBtn = e.target.closest('[aria-label="Audit Notifications"]');
-      if (dropdown && !dropdown.classList.contains('hidden') && !bellBtn && !dropdown.contains(e.target)) {
-        dropdown.classList.add('hidden');
-      }
+      // Automatically pull latest records from Google Sheets in the background on load
+      pullFullStateFromSheets(false);
     });
 
-    if (document.readyState === 'loading') {
-      document.addEventListener('DOMContentLoaded', () => {
-        renderQuickFillAccounts();
-        initApp();
-      });
-    } else {
-      initApp();
-    }
+    document.addEventListener('click', e => {
+      const dd = document.getElementById('notif-dropdown');
+      const bellBtn = e.target.closest('button[aria-label="Audit Notifications"]');
+      if (dd && !dd.classList.contains('hidden') && !dd.contains(e.target) && !bellBtn) {
+        dd.classList.add('hidden');
+      }
+    });
   </script>
 </body>
 </html>
